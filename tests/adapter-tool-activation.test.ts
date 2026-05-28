@@ -1,0 +1,76 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/config.ts";
+import { syncAdapter } from "../src/adapter/activation.ts";
+import type { AdapterState } from "../src/adapter/state.ts";
+import { mergeAdapterTools, restoreTools } from "../src/index.ts";
+
+function createToolHarness(activeTools: string[]) {
+	return {
+		getActiveTools: () => activeTools,
+		setActiveTools: (nextTools: string[]) => {
+			activeTools = nextTools;
+		},
+		activeTools: () => activeTools,
+	};
+}
+
+function createAdapterState(overrides: Partial<AdapterState["config"]> = {}): AdapterState {
+	return {
+		enabled: false,
+		cwd: process.cwd(),
+		promptSkills: [],
+		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, imageGeneration: false, webSearch: false, ...overrides },
+	};
+}
+
+function createContext(model: { provider: string; api: string; id: string }) {
+	return {
+		hasUI: false,
+		model,
+		ui: { setStatus: () => undefined },
+	};
+}
+
+test("mergeAdapterTools replaces Pi core tools while preserving unrelated tools", () => {
+	assert.deepEqual(
+		mergeAdapterTools(["read", "bash", "edit", "write", "parallel", "custom_search"], ["exec_command", "write_stdin", "apply_patch"]),
+		["exec_command", "write_stdin", "apply_patch", "parallel", "custom_search"],
+	);
+});
+
+test("syncAdapter preserves disabled optional tools across repeated syncs", () => {
+	const pi = createToolHarness(["read", "web_search", "image_generation", "parallel"]);
+	const ctx = createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" });
+	const state = createAdapterState({ webSearch: false, imageGeneration: false });
+
+	syncAdapter(pi as never, ctx as never, state);
+	syncAdapter(pi as never, ctx as never, state);
+
+	assert.deepEqual(pi.activeTools(), ["exec_command", "write_stdin", "apply_patch", "web_search", "image_generation", "parallel"]);
+});
+
+test("syncAdapter add-apply_patch-only mode is gated to Codex-like models", () => {
+	const codexPi = createToolHarness(["read", "bash", "edit", "write", "web_search", "image_generation", "parallel"]);
+	syncAdapter(
+		codexPi as never,
+		createContext({ provider: "openai", api: "openai-responses", id: "gpt-5" }) as never,
+		createAdapterState({ applyPatchOnly: true, webSearch: true, imageGeneration: true }),
+	);
+	assert.deepEqual(codexPi.activeTools(), ["read", "bash", "edit", "write", "web_search", "parallel", "apply_patch"]);
+
+	const plainPi = createToolHarness(["read", "bash", "edit", "write", "parallel"]);
+	syncAdapter(
+		plainPi as never,
+		createContext({ provider: "anthropic", api: "anthropic-messages", id: "claude" }) as never,
+		createAdapterState({ applyPatchOnly: true, webSearch: true, imageGeneration: true }),
+	);
+	assert.deepEqual(plainPi.activeTools(), ["read", "bash", "edit", "write", "parallel"]);
+});
+
+test("restoreTools restores previous tools and keeps custom tools added while adapter mode was enabled", () => {
+	assert.deepEqual(
+		restoreTools(["read", "bash", "edit", "write", "parallel"], ["exec_command", "write_stdin", "apply_patch", "parallel", "custom_search"]),
+		["read", "bash", "edit", "write", "parallel", "custom_search"],
+	);
+});
