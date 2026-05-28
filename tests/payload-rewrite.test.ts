@@ -170,5 +170,5 @@ test("native replay preserves the previous native blob across a newer Pi fallbac
 	assert.equal(result.ok, true);
 	if (!result.ok) return;
 	assert.deepEqual(result.rewrittenPayload.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["compaction_summary", "user", "user"]);
-	assert.deepEqual((result.rewrittenPayload.input[0] as { encrypted_content?: string }).encrypted_content, "sealed");
+	assert.deepEqual((result.rewrittenPayload.input[0]! as { encrypted_content?: string }).encrypted_content, "sealed");
 });

@@ -88,7 +88,7 @@ function buildCompactionReasoning(pi: ExtensionAPI, ctx: ExtensionContext, state
 function clampCodexReasoningEffort(modelId: string, effort: string): string {
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
 	const gpt5MinorMatch = /^gpt-5\.(\d+)/.exec(id);
-	const gpt5Minor = gpt5MinorMatch ? Number.parseInt(gpt5MinorMatch[1], 10) : undefined;
+	const gpt5Minor = gpt5MinorMatch ? Number.parseInt(gpt5MinorMatch[1]!, 10) : undefined;
 	if (gpt5Minor !== undefined && gpt5Minor >= 2 && effort === "minimal") return "low";
 	if (id === "gpt-5.1" && effort === "xhigh") return "high";
 	if (id === "gpt-5.1-codex-mini") return effort === "high" || effort === "xhigh" ? "high" : "medium";
@@ -116,7 +116,7 @@ function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, 
 	};
 }
 
-function getCompactionIdentity(entry: { details?: unknown } | undefined) {
+function getCompactionIdentity(entry: { details?: unknown | undefined } | undefined) {
 	return isNativeCompactionDetails(entry?.details)
 		? { provider: entry.details.provider, api: entry.details.api, model: entry.details.model, baseUrl: entry.details.baseUrl }
 		: undefined;
@@ -131,7 +131,7 @@ function formatCompactFailureMessage(compactResult: Awaited<ReturnType<typeof ex
 }
 
 function formatCompactRequestDiagnostics(request: NativeCompactionRequestBody): string {
-	const reasoning = isRecord(request.reasoning) && typeof request.reasoning.effort === "string" ? request.reasoning.effort : "none";
+	const reasoning = isRecord(request.reasoning) && typeof request.reasoning["effort"]! === "string" ? request.reasoning["effort"]! : "none";
 	const serviceTier = typeof request.service_tier === "string" ? request.service_tier : "none";
 	const tools = Array.isArray(request.tools) ? request.tools.length : 0;
 	return `model=${request.model}, input=${request.input.length}, tools=${tools}, reasoning=${reasoning}, service_tier=${serviceTier}`;
@@ -146,7 +146,7 @@ function textFromResponsesContent(content: unknown): string {
 	if (typeof content === "string") return content;
 	if (!Array.isArray(content)) return "";
 	return content
-		.map((item) => isRecord(item) && item.type === "input_text" && typeof item.text === "string" ? item.text : "")
+		.map((item) => isRecord(item) && item["type"] === "input_text" && typeof item["text"]! === "string" ? item["text"]! : "")
 		.join("\n");
 }
 
@@ -156,8 +156,8 @@ function isPiCompactionSummarizationPayload(payload: ResponsesCompatibleRequestP
 
 	return payload.input.some((item) => {
 		if (!isRecord(item)) return false;
-		const role = item.role;
-		const text = textFromResponsesContent(item.content);
+		const role = item["role"]!;
+		const text = textFromResponsesContent(item["content"]!);
 		if ((role === "system" || role === "developer") && /compact|summar/i.test(text)) return true;
 		if (role === "user" && /<conversation>|previous compaction summary|summary/i.test(text)) return true;
 		return false;
@@ -315,7 +315,7 @@ export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx
 	});
 	if (latestNativeCompactionIndex === undefined) return undefined;
 	if (!runtime.payload) return undefined;
-	const rewrite = rewriteResponsesPayloadWithNativeReplay({ model: runtime.currentModel, payload: runtime.payload, branchEntries, compactionEntry: branchEntries[latestNativeCompactionIndex] as NativeCompactionEntry });
+	const rewrite = rewriteResponsesPayloadWithNativeReplay({ model: runtime.currentModel, payload: runtime.payload, branchEntries, compactionEntry: branchEntries[latestNativeCompactionIndex]! as NativeCompactionEntry });
 	if (rewrite.ok) return rewrite.rewrittenPayload;
 	const detail = rewrite.parity?.mismatches.slice(0, 3).join("; ");
 	const message = `OpenAI native compaction replay failed (${rewrite.reason})${detail ? `: ${detail}` : ""}; request was not sent with placeholder compaction context.`;
@@ -344,8 +344,8 @@ export async function injectPendingNativeWindowIntoPiCompactionRequest(payload: 
 	const input = [...payload.input];
 	let insertAt = 0;
 	while (insertAt < input.length) {
-		const item = input[insertAt];
-		if (!isRecord(item) || (item.role !== "system" && item.role !== "developer")) break;
+		const item = input[insertAt]!;
+		if (!isRecord(item) || (item["role"] !== "system" && item["role"] !== "developer")) break;
 		insertAt++;
 	}
 

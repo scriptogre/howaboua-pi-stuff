@@ -11,7 +11,7 @@ export function hasBashAstSupport(): boolean {
 
 export function extractBashCommand(command: string[]): [shell: string, script: string] | undefined {
 	if (command.length !== 3) return undefined;
-	const [shell, flag, script] = command;
+	const [shell, flag, script] = command as [string, string, string];
 	if (flag !== "-lc" && flag !== "-c") return undefined;
 	const shellName = shell.replace(/\\/g, "/").split("/").pop()?.toLowerCase();
 	if (shellName !== "bash" && shellName !== "zsh" && shellName !== "sh") return undefined;

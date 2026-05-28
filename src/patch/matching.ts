@@ -20,7 +20,7 @@ export function linesEqualFuzz({ left, right }: { left: string[]; right: string[
 	let fuzz = 0;
 	let worstLineFuzz = 0;
 	for (let index = 0; index < left.length; index++) {
-		const lineFuzz = lineMatchFuzz(left[index], right[index]);
+		const lineFuzz = lineMatchFuzz(left[index]!, right[index]!);
 		if (lineFuzz === undefined) return undefined;
 		fuzz += lineFuzz;
 		worstLineFuzz = Math.max(worstLineFuzz, lineFuzz);

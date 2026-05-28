@@ -12,11 +12,11 @@ export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["cur
 export interface CodexConversionConfig {
 	applyPatchOnly: boolean;
 	fast: boolean;
-	forceCachedWebSockets?: boolean;
+	forceCachedWebSockets?: boolean | undefined;
 	imageGeneration: boolean;
 	compactionModel: CompactionModel;
 	compactionReasoning: CompactionReasoning;
-	responsesCompaction?: boolean;
+	responsesCompaction?: boolean | undefined;
 	statusLine: boolean;
 	useOnAllModels: boolean;
 	webSearch: boolean;
@@ -72,17 +72,17 @@ export function readCodexConversionConfig(configPath: string = getCodexConversio
 		const parsed = JSON.parse(readFileSync(configPath, "utf-8")) as unknown;
 		if (!isObject(parsed)) return { ...DEFAULT_CODEX_CONVERSION_CONFIG };
 		return {
-			applyPatchOnly: typeof parsed.applyPatchOnly === "boolean" ? parsed.applyPatchOnly : DEFAULT_CODEX_CONVERSION_CONFIG.applyPatchOnly,
-			fast: typeof parsed.fast === "boolean" ? parsed.fast : DEFAULT_CODEX_CONVERSION_CONFIG.fast,
-			forceCachedWebSockets: typeof parsed.forceCachedWebSockets === "boolean" ? parsed.forceCachedWebSockets : DEFAULT_CODEX_CONVERSION_CONFIG.forceCachedWebSockets,
-			imageGeneration: typeof parsed.imageGeneration === "boolean" ? parsed.imageGeneration : DEFAULT_CODEX_CONVERSION_CONFIG.imageGeneration,
-			compactionModel: normalizeCompactionModel(parsed.compactionModel) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionModel,
-			compactionReasoning: normalizeCompactionReasoning(parsed.compactionReasoning) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionReasoning,
-			responsesCompaction: typeof parsed.responsesCompaction === "boolean" ? parsed.responsesCompaction : DEFAULT_CODEX_CONVERSION_CONFIG.responsesCompaction,
-			statusLine: typeof parsed.statusLine === "boolean" ? parsed.statusLine : DEFAULT_CODEX_CONVERSION_CONFIG.statusLine,
-			useOnAllModels: typeof parsed.useOnAllModels === "boolean" ? parsed.useOnAllModels : DEFAULT_CODEX_CONVERSION_CONFIG.useOnAllModels,
-			webSearch: typeof parsed.webSearch === "boolean" ? parsed.webSearch : DEFAULT_CODEX_CONVERSION_CONFIG.webSearch,
-			verbosity: normalizeCodexVerbosity(parsed.verbosity) ?? DEFAULT_CODEX_CONVERSION_CONFIG.verbosity,
+			applyPatchOnly: typeof parsed["applyPatchOnly"]! === "boolean" ? parsed["applyPatchOnly"]! : DEFAULT_CODEX_CONVERSION_CONFIG.applyPatchOnly,
+			fast: typeof parsed["fast"]! === "boolean" ? parsed["fast"]! : DEFAULT_CODEX_CONVERSION_CONFIG.fast,
+			forceCachedWebSockets: typeof parsed["forceCachedWebSockets"]! === "boolean" ? parsed["forceCachedWebSockets"]! : DEFAULT_CODEX_CONVERSION_CONFIG.forceCachedWebSockets,
+			imageGeneration: typeof parsed["imageGeneration"]! === "boolean" ? parsed["imageGeneration"]! : DEFAULT_CODEX_CONVERSION_CONFIG.imageGeneration,
+			compactionModel: normalizeCompactionModel(parsed["compactionModel"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionModel,
+			compactionReasoning: normalizeCompactionReasoning(parsed["compactionReasoning"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.compactionReasoning,
+			responsesCompaction: typeof parsed["responsesCompaction"]! === "boolean" ? parsed["responsesCompaction"]! : DEFAULT_CODEX_CONVERSION_CONFIG.responsesCompaction,
+			statusLine: typeof parsed["statusLine"]! === "boolean" ? parsed["statusLine"]! : DEFAULT_CODEX_CONVERSION_CONFIG.statusLine,
+			useOnAllModels: typeof parsed["useOnAllModels"]! === "boolean" ? parsed["useOnAllModels"]! : DEFAULT_CODEX_CONVERSION_CONFIG.useOnAllModels,
+			webSearch: typeof parsed["webSearch"]! === "boolean" ? parsed["webSearch"]! : DEFAULT_CODEX_CONVERSION_CONFIG.webSearch,
+			verbosity: normalizeCodexVerbosity(parsed["verbosity"]!) ?? DEFAULT_CODEX_CONVERSION_CONFIG.verbosity,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
@@ -109,10 +109,10 @@ export function writeCodexConversionConfig(
 export function applyCodexRequestParams(
 	payload: unknown,
 	config: CodexConversionConfig,
-	options: { serviceTier?: boolean; verbosity?: boolean } = { serviceTier: true, verbosity: true },
+	options: { serviceTier?: boolean | undefined; verbosity?: boolean | undefined } = { serviceTier: true, verbosity: true },
 ): unknown {
 	if (!isObject(payload)) return payload;
-	const text = isObject(payload.text) ? payload.text : {};
+	const text = isObject(payload["text"]!) ? payload["text"]! : {};
 	return {
 		...payload,
 		...(options.serviceTier && config.fast ? { service_tier: "priority" } : {}),

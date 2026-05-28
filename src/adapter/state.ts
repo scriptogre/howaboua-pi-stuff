@@ -8,18 +8,18 @@ export interface PendingPiCompactionNativeWindow {
 	api: string;
 	baseUrl: string;
 	sessionId: string;
-	sourceCompactionEntryId?: string;
+	sourceCompactionEntryId?: string | undefined;
 }
 
 export interface AdapterState {
 	enabled: boolean;
 	cwd: string;
-	adapterOwnedToolNames?: string[];
-	previousToolNames?: string[];
+	adapterOwnedToolNames?: string[] | undefined;
+	previousToolNames?: string[] | undefined;
 	promptSkills: PromptSkill[];
 	config: CodexConversionConfig;
-	pendingPiCompactionNativeWindow?: PendingPiCompactionNativeWindow;
-	codexContextBudgetRawWindows?: Record<string, number>;
-	codexContextBudgetAdjustedWindows?: Record<string, number>;
-	codexContextBudgetReserveTokens?: number;
+	pendingPiCompactionNativeWindow?: PendingPiCompactionNativeWindow | undefined;
+	codexContextBudgetRawWindows?: Record<string, number> | undefined;
+	codexContextBudgetAdjustedWindows?: Record<string, number> | undefined;
+	codexContextBudgetReserveTokens?: number | undefined;
 }

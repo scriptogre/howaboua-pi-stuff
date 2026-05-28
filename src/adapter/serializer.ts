@@ -45,12 +45,12 @@ export type ResponsesAssistantOutputItem = {
 	}>;
 	status: "completed";
 	id: string;
-	phase?: AssistantPhase;
+	phase?: AssistantPhase | undefined;
 };
 
 export type ResponsesFunctionCallItem = {
 	type: "function_call";
-	id?: string;
+	id?: string | undefined;
 	call_id: string;
 	name: string;
 	arguments: string;
@@ -75,12 +75,12 @@ export type NativeCompactionRequestBody = {
 	model: string;
 	input: ResponsesInputItem[];
 	instructions: string;
-	parallel_tool_calls?: boolean;
-	prompt_cache_key?: string;
-	service_tier?: string;
-	text?: { verbosity: string };
-	tools?: unknown[];
-	reasoning?: unknown;
+	parallel_tool_calls?: boolean | undefined;
+	prompt_cache_key?: string | undefined;
+	service_tier?: string | undefined;
+	text?: { verbosity: string } | undefined;
+	tools?: unknown[] | undefined;
+	reasoning?: unknown | undefined;
 };
 
 export type NativeCompactionRequestOptions = Pick<
@@ -89,9 +89,9 @@ export type NativeCompactionRequestOptions = Pick<
 >;
 
 export type SerializeResponsesMessagesOptions = {
-	instructions?: string;
-	includeInstructionsInInput?: boolean;
-	blockImages?: boolean;
+	instructions?: string | undefined;
+	includeInstructionsInInput?: boolean | undefined;
+	blockImages?: boolean | undefined;
 };
 
 export type ResponsesParityReport = {
@@ -116,7 +116,7 @@ function readBlockImagesSetting(): boolean {
 	if (cachedBlockImagesSetting !== undefined) return cachedBlockImagesSetting;
 	try {
 		const parsed = JSON.parse(readFileSync(join(getAgentDir(), "settings.json"), "utf-8")) as unknown;
-		cachedBlockImagesSetting = isRecord(parsed) && isRecord(parsed.images) && parsed.images.blockImages === true;
+		cachedBlockImagesSetting = isRecord(parsed) && isRecord(parsed["images"]!) && parsed["images"]["blockImages"] === true;
 	} catch {
 		cachedBlockImagesSetting = false;
 	}
@@ -128,7 +128,7 @@ function replaceImagesWithDisabledPlaceholder<TMessage extends UserMessage | Too
 	const content = message.content
 		.map((item): TextContent | ImageContent => item.type === "image" ? { type: "text", text: "Image reading is disabled." } : item)
 		.filter((item, index, items) => {
-			const previous = items[index - 1];
+			const previous = (items[index - 1])!;
 			return !(item.type === "text" && item.text === "Image reading is disabled." && previous?.type === "text" && previous.text === "Image reading is disabled.");
 		});
 	return { ...message, content };
@@ -142,7 +142,7 @@ function applyBlockImages(messages: Message[], blockImages: boolean): Message[] 
 	});
 }
 
-type CompactionPreparationLike = { messagesToSummarize: AgentMessage[]; turnPrefixMessages: AgentMessage[]; previousSummary?: string };
+type CompactionPreparationLike = { messagesToSummarize: AgentMessage[]; turnPrefixMessages: AgentMessage[]; previousSummary?: string | undefined };
 
 export function collectCompactionWindowMessages(preparation: CompactionPreparationLike): AgentMessage[] {
 	const previousSummary = preparation.previousSummary?.trim();
@@ -162,7 +162,7 @@ export function serializeCompactionPreparationToRequest<TApi extends Api>(args: 
 	model: Model<TApi>;
 	preparation: CompactionPreparationLike;
 	instructions: string;
-	requestOptions?: NativeCompactionRequestOptions;
+	requestOptions?: NativeCompactionRequestOptions | undefined;
 }): NativeCompactionRequestBody {
 	return serializeMessagesToCompactRequest({
 		model: args.model,
@@ -176,7 +176,7 @@ export function serializeMessagesToCompactRequest<TApi extends Api>(args: {
 	model: Model<TApi>;
 	messages: AgentMessage[];
 	instructions: string;
-	requestOptions?: NativeCompactionRequestOptions;
+	requestOptions?: NativeCompactionRequestOptions | undefined;
 }): NativeCompactionRequestBody {
 	return {
 		model: args.model.id,
@@ -214,8 +214,8 @@ export function compareResponsesInputParity(actual: readonly unknown[], expected
 	const mismatches: string[] = [];
 
 	for (let index = 0; index < maxLength; index++) {
-		const actualValue = actualSignature[index];
-		const expectedValue = expectedSignature[index];
+		const actualValue = actualSignature[index]!;
+		const expectedValue = expectedSignature[index]!;
 		if (actualValue !== expectedValue) {
 			mismatches.push(`index ${index}: expected ${expectedValue ?? "<missing>"}, got ${actualValue ?? "<missing>"}`);
 		}
@@ -258,17 +258,17 @@ function describeResponsesInputItem(item: unknown): string {
 	}
 
 	const record = item as Record<string, unknown>;
-	const type = typeof record.type === "string" ? record.type : undefined;
+	const type = typeof record["type"]! === "string" ? record["type"]! : undefined;
 	if (type === "message") {
 		const phase =
-			record.phase === "commentary" || record.phase === "final_answer"
-				? `:${record.phase}`
+			record["phase"] === "commentary" || record["phase"] === "final_answer"
+				? `:${record["phase"]!}`
 				: "";
-		return `message:${typeof record.role === "string" ? record.role : "unknown"}${phase}`;
+		return `message:${typeof record["role"]! === "string" ? record["role"]! : "unknown"}${phase}`;
 	}
 
 	if (type === "function_call") {
-		return `function_call:${typeof record.name === "string" ? record.name : "unknown"}`;
+		return `function_call:${typeof record["name"]! === "string" ? record["name"]! : "unknown"}`;
 	}
 
 	if (type === "function_call_output") {
@@ -279,9 +279,9 @@ function describeResponsesInputItem(item: unknown): string {
 		return "reasoning";
 	}
 
-	if (typeof record.role === "string") {
-		const content = Array.isArray(record.content) ? `[${record.content.length}]` : "";
-		return `input:${record.role}${content}`;
+	if (typeof record["role"]! === "string") {
+		const content = Array.isArray(record["content"]!) ? `[${record["content"]!.length}]` : "";
+		return `input:${record["role"]!}${content}`;
 	}
 
 	return type ? `item:${type}` : "object";

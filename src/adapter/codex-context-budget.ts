@@ -29,9 +29,9 @@ function readSettings(path: string): Record<string, unknown> | undefined {
 }
 
 function getReserveTokens(settings: Record<string, unknown> | undefined): number | undefined {
-	const compaction = settings?.compaction;
+	const compaction = settings?.["compaction"];
 	if (!compaction || typeof compaction !== "object" || Array.isArray(compaction)) return undefined;
-	const reserveTokens = (compaction as { reserveTokens?: unknown }).reserveTokens;
+	const reserveTokens = (compaction as { reserveTokens?: unknown | undefined }).reserveTokens;
 	return typeof reserveTokens === "number" && Number.isFinite(reserveTokens) && reserveTokens >= 0 ? reserveTokens : undefined;
 }
 

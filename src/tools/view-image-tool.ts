@@ -16,7 +16,7 @@ const DETAIL_DESCRIPTION =
 
 interface ViewImageParams {
 	path: string;
-	detail?: string;
+	detail?: string | undefined;
 }
 
 interface ViewImageReader {
@@ -29,7 +29,7 @@ interface ViewImageReaders {
 }
 
 interface CreateViewImageToolOptions {
-	allowOriginalDetail?: boolean;
+	allowOriginalDetail?: boolean | undefined;
 	createReaders?: (cwd: string) => ViewImageReaders;
 }
 
@@ -40,7 +40,7 @@ function createViewImageParameters(allowOriginalDetail: boolean) {
 		path: Type.String({ description: "Local image file path." }),
 	};
 	if (allowOriginalDetail) {
-		properties.detail = Type.Optional(Type.String({ description: DETAIL_DESCRIPTION }));
+		properties["detail"] = Type.Optional(Type.String({ description: DETAIL_DESCRIPTION }));
 	}
 	return Type.Object(properties);
 }
@@ -77,9 +77,9 @@ function prepareViewImageArguments(args: unknown): Record<string, unknown> {
 	const prepared: Record<string, unknown> = { ...record };
 	if (!("path" in prepared)) {
 		if ("file_path" in prepared) {
-			prepared.path = prepared.file_path;
+			prepared["path"] = prepared["file_path"]!;
 		} else if ("image_path" in prepared) {
-			prepared.path = prepared.image_path;
+			prepared["path"] = prepared["image_path"]!;
 		}
 	}
 	return prepared;
@@ -163,7 +163,7 @@ export function createViewImageTool(options: CreateViewImageToolOptions = {}): T
 		},
 		renderCall(args, theme) {
 			return new Text(
-				`${theme.fg("toolTitle", theme.bold("view_image"))} ${theme.fg("accent", typeof args.path === "string" ? args.path : "")}`,
+				`${theme.fg("toolTitle", theme.bold("view_image"))} ${theme.fg("accent", typeof args["path"]! === "string" ? args["path"]! : "")}`,
 				0,
 				0,
 			);

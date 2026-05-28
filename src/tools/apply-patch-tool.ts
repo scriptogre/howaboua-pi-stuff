@@ -17,7 +17,7 @@ interface ApplyPatchRenderState {
 	collapsed: string;
 	expanded: string;
 	status: "pending" | "partial_failure" | "failed";
-	failedTargets?: string[];
+	failedTargets?: string[] | undefined;
 }
 
 interface ApplyPatchSuccessDetails {
@@ -29,7 +29,7 @@ interface ApplyPatchPartialFailureDetails {
 	status: "partial_failure";
 	result: ExecutePatchResult;
 	error: string;
-	failedTargets?: string[];
+	failedTargets?: string[] | undefined;
 	appliedFiles: string[];
 	failedFiles: string[];
 	recoveryInstructions: {
@@ -43,10 +43,10 @@ type ApplyPatchToolDetails = ApplyPatchSuccessDetails | ApplyPatchPartialFailure
 const applyPatchRenderStates = new Map<string, ApplyPatchRenderState>();
 
 interface ApplyPatchRenderContextLike {
-	toolCallId?: string;
-	cwd?: string;
-	expanded?: boolean;
-	argsComplete?: boolean;
+	toolCallId?: string | undefined;
+	cwd?: string | undefined;
+	expanded?: boolean | undefined;
+	argsComplete?: boolean | undefined;
 }
 
 function parseApplyPatchParams(params: unknown): { patchText: string } {
@@ -119,12 +119,12 @@ function renderPartialFailureCall(
 	if (lines.length === 0) {
 		return theme.fg("warning", "• Edit partially failed");
 	}
-	lines[0] = lines[0].replace(/^• (Added|Edited|Deleted)\b/, "• Edit partially failed");
+	lines[0] = lines[0]!.replace(/^• (Added|Edited|Deleted)\b/, "• Edit partially failed");
 	const failedLineIndexes = new Set<number>();
 	if (failedTargets) {
 		for (let i = 0; i < lines.length; i += 1) {
 			for (const failedTarget of failedTargets) {
-				const failedLine = markFailedTargetLine(lines[i], failedTarget);
+				const failedLine = markFailedTargetLine(lines[i]!, failedTarget);
 				if (failedLine) {
 					lines[i] = failedLine;
 					failedLineIndexes.add(i);
@@ -155,12 +155,12 @@ function renderFailedCall(
 	if (lines.length === 0) {
 		return theme.fg("error", "• Edit failed");
 	}
-	lines[0] = lines[0].replace(/^• (Added|Edited|Deleted)\b/, "• Edit failed");
+	lines[0] = lines[0]!.replace(/^• (Added|Edited|Deleted)\b/, "• Edit failed");
 	const failedLineIndexes = new Set<number>();
 	if (failedTargets) {
 		for (let i = 0; i < lines.length; i += 1) {
 			for (const failedTarget of failedTargets) {
-				const failedLine = markFailedTargetLine(lines[i], failedTarget);
+				const failedLine = markFailedTargetLine(lines[i]!, failedTarget);
 				if (failedLine) {
 					lines[i] = failedLine;
 					failedLineIndexes.add(i);
@@ -184,7 +184,7 @@ function markFailedTargetLine(line: string, failedTarget: string): string | unde
 	if (!suffixMatch) {
 		return undefined;
 	}
-	const suffix = suffixMatch[0];
+	const suffix = suffixMatch[0]!;
 	const prefixAndTarget = line.slice(0, -suffix.length);
 	const candidatePrefixes = ["• Edit partially failed ", "• Added ", "• Edited ", "• Deleted ", "  └ ", "    "];
 	for (const prefix of candidatePrefixes) {
@@ -244,7 +244,7 @@ export function clearApplyPatchRenderState(): void {
 }
 
 const renderApplyPatchCallWithOptionalContext: any = (
-	args: { input?: unknown },
+	args: { input?: unknown | undefined },
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
 	context?: ApplyPatchRenderContextLike,
 ) => {

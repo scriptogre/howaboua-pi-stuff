@@ -9,26 +9,26 @@ export interface UnifiedExecResult {
 	chunk_id: string;
 	wall_time_seconds: number;
 	output: string;
-	exit_code?: number;
-	session_id?: number;
-	original_token_count?: number;
+	exit_code?: number | undefined;
+	session_id?: number | undefined;
+	original_token_count?: number | undefined;
 }
 
 export interface ExecCommandInput {
 	cmd: string;
-	workdir?: string;
-	shell?: string;
-	tty?: boolean;
-	yield_time_ms?: number;
-	max_output_tokens?: number;
-	login?: boolean;
+	workdir?: string | undefined;
+	shell?: string | undefined;
+	tty?: boolean | undefined;
+	yield_time_ms?: number | undefined;
+	max_output_tokens?: number | undefined;
+	login?: boolean | undefined;
 }
 
 export interface WriteStdinInput {
 	session_id: number;
-	chars?: string;
-	yield_time_ms?: number;
-	max_output_tokens?: number;
+	chars?: string | undefined;
+	yield_time_ms?: number | undefined;
+	max_output_tokens?: number | undefined;
 }
 
 interface BaseExecSession {
@@ -68,11 +68,11 @@ export interface ExecSessionManager {
 }
 
 export interface ExecSessionManagerOptions {
-	defaultExecYieldTimeMs?: number;
-	defaultWriteYieldTimeMs?: number;
-	minNonInteractiveExecYieldTimeMs?: number;
-	minEmptyWriteYieldTimeMs?: number;
-	maxSessionBufferChars?: number;
+	defaultExecYieldTimeMs?: number | undefined;
+	defaultWriteYieldTimeMs?: number | undefined;
+	minNonInteractiveExecYieldTimeMs?: number | undefined;
+	minEmptyWriteYieldTimeMs?: number | undefined;
+	maxSessionBufferChars?: number | undefined;
 }
 
 const DEFAULT_EXEC_YIELD_TIME_MS = 10_000;
@@ -91,7 +91,7 @@ function resolveWorkdir(baseCwd: string, workdir?: string): string {
 }
 
 function resolveShell(shell?: string): string {
-	return getCodexRuntimeShell(shell || process.env["SHELL"]);
+	return getCodexRuntimeShell(shell || process.env["SHELL"]!);
 }
 
 const BASH_SYNC_ENV_KEYS = [
@@ -119,13 +119,13 @@ function shellEscape(value: string): string {
 }
 
 function shouldSyncBashEnv(requestedShell: string | undefined, effectiveShell: string): boolean {
-	return effectiveShell === CODEX_FALLBACK_SHELL && isFishShell(requestedShell || process.env["SHELL"]);
+	return effectiveShell === CODEX_FALLBACK_SHELL && isFishShell(requestedShell || process.env["SHELL"]!);
 }
 
 function buildSyncedBashCommand(command: string, env: NodeJS.ProcessEnv): string {
 	const assignments: string[] = [];
 	for (const key of BASH_SYNC_ENV_KEYS) {
-		const value = key === "SHELL" ? CODEX_FALLBACK_SHELL : env[key];
+		const value = key === "SHELL" ? CODEX_FALLBACK_SHELL : env[key]!;
 		if (typeof value !== "string") continue;
 		assignments.push(`export ${key}=${shellEscape(value)}`);
 	}
@@ -139,7 +139,7 @@ function resolveExecution(requestedShell: string | undefined, command: string): 
 	if (!shouldSyncBashEnv(requestedShell, shell)) {
 		return { shell, command, env };
 	}
-	env.SHELL = CODEX_FALLBACK_SHELL;
+	env["SHELL"] = CODEX_FALLBACK_SHELL;
 	return {
 		shell,
 		command: buildSyncedBashCommand(command, env),
@@ -240,7 +240,7 @@ function applyTerminalOutput(session: PtyExecSession, text: string): string {
 					break;
 				}
 				const params = sanitized.slice(index + 2, sequenceEnd);
-				const finalByte = sanitized[sequenceEnd];
+				const finalByte = sanitized[sequenceEnd]!;
 				if (finalByte === "K") {
 					const mode = Number(params || "0");
 					if (mode === 0) {
@@ -258,7 +258,7 @@ function applyTerminalOutput(session: PtyExecSession, text: string): string {
 				continue;
 			}
 
-			const next = sanitized[index + 1];
+			const next = (sanitized[index + 1])!;
 			if (next && /[()*+,\-./]/.test(next) && index + 2 < sanitized.length) {
 				index += 2;
 				continue;
@@ -313,7 +313,7 @@ function generateChunkId(): string {
 	return randomBytes(3).toString("hex");
 }
 
-function truncateOutput(text: string, maxOutputTokens?: number): { output: string; original_token_count?: number } {
+function truncateOutput(text: string, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
 	if (text.length === 0) {
 		return { output: "" };
 	}
@@ -330,20 +330,20 @@ function truncateOutput(text: string, maxOutputTokens?: number): { output: strin
 	};
 }
 
-function consumeOutput(session: ExecSession, maxOutputTokens?: number): { output: string; original_token_count?: number } {
+function consumeOutput(session: ExecSession, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
 	const text =
 		session.kind === "pty" ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
 	session.emittedBuffer = session.buffer;
 	return truncateOutput(text, maxOutputTokens);
 }
 
-function peekUnconsumedOutput(session: ExecSession, maxOutputTokens?: number): { output: string; original_token_count?: number } {
+function peekUnconsumedOutput(session: ExecSession, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
 	const text =
 		session.kind === "pty" ? computePtyDelta(session.emittedBuffer, session.buffer) : session.buffer.slice(session.emittedBuffer.length);
 	return truncateOutput(text, maxOutputTokens);
 }
 
-function peekOutputSince(session: ExecSession, baseline: string, maxOutputTokens?: number): { output: string; original_token_count?: number } {
+function peekOutputSince(session: ExecSession, baseline: string, maxOutputTokens?: number): { output: string; original_token_count?: number | undefined } {
 	const text = session.kind === "pty" ? computePtyDelta(baseline, session.buffer) : session.buffer.slice(baseline.length);
 	return truncateOutput(text, maxOutputTokens);
 }
@@ -492,7 +492,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	function makeSnapshotFromOutput(
 		session: ExecSession,
 		waitMs: number,
-		snapshot: { output: string; original_token_count?: number },
+		snapshot: { output: string; original_token_count?: number | undefined },
 	): UnifiedExecResult {
 		const result: UnifiedExecResult = {
 			chunk_id: generateChunkId(),

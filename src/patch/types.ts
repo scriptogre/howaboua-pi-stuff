@@ -9,17 +9,17 @@ export interface Chunk {
 
 export interface PatchAction {
 	type: ActionType;
-	newFile?: string;
+	newFile?: string | undefined;
 	chunks: Chunk[];
-	movePath?: string;
+	movePath?: string | undefined;
 }
 
 export interface ParsedPatchAction {
 	type: ActionType;
 	path: string;
-	newFile?: string;
-	lines?: string[];
-	movePath?: string;
+	newFile?: string | undefined;
+	lines?: string[] | undefined;
+	movePath?: string | undefined;
 }
 
 export interface ParserState {
@@ -50,7 +50,7 @@ export class DiffError extends Error {
 
 export class ExecutePatchError extends DiffError {
 	result: ExecutePatchResult;
-	failedAction?: ParsedPatchAction;
+	failedAction?: ParsedPatchAction | undefined;
 	failures: ExecutePatchFailure[];
 
 	constructor(message: string, result: ExecutePatchResult, failures: ExecutePatchFailure[] = []) {
@@ -58,7 +58,7 @@ export class ExecutePatchError extends DiffError {
 		this.name = "ExecutePatchError";
 		this.result = result;
 		this.failures = failures;
-		this.failedAction = failures[0]?.action;
+		this.failedAction = failures[0]!?.action;
 	}
 
 	hasPartialSuccess(): boolean {

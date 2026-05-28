@@ -11,7 +11,7 @@ const ADAPTER_CONTEXT_EXCLUDED_CUSTOM_MESSAGE_TYPES = new Set([
 	NATIVE_COMPACTION_DISPLAY_MESSAGE_TYPE,
 ]);
 
-export function isAdapterContextExcludedCustomMessage(message: Pick<AgentMessage, "role"> & { customType?: string }): boolean {
+export function isAdapterContextExcludedCustomMessage(message: Pick<AgentMessage, "role"> & { customType?: string | undefined }): boolean {
 	return message.role === "custom" && typeof message.customType === "string" && ADAPTER_CONTEXT_EXCLUDED_CUSTOM_MESSAGE_TYPES.has(message.customType);
 }
 

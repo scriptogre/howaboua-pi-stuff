@@ -66,7 +66,7 @@ function getUpdatedFile({ text, action, path }: { text: string; action: PatchAct
 
 		for (const line of chunk.delLines) {
 			if (!linesMatch(origLines[origIndex] ?? "", line)) {
-				throw new DiffError(`_get_updated_file: ${path}: Expected ${line} but got ${origLines[origIndex]} at line ${origIndex + 1}`);
+				throw new DiffError(`_get_updated_file: ${path}: Expected ${line} but got ${origLines[origIndex]!} at line ${origIndex + 1}`);
 			}
 			origIndex += 1;
 		}
@@ -247,7 +247,7 @@ export function executePatch({ cwd, patchText }: { cwd: string; patchText: strin
 		if (overlappingPaths.length > 0) {
 			failures.push({
 				action,
-				message: `Skipped because an earlier failed action affected ${actionPaths.filter((_, index) => overlappingPaths.includes(canonicalActionPaths[index])).join(", ")}`,
+				message: `Skipped because an earlier failed action affected ${actionPaths.filter((_, index) => overlappingPaths.includes(canonicalActionPaths[index]!)).join(", ")}`,
 			});
 			continue;
 		}
@@ -273,7 +273,7 @@ export function executePatch({ cwd, patchText }: { cwd: string; patchText: strin
 	if (failures.length > 0) {
 		const message =
 			failures.length === 1
-				? failures[0].message
+				? failures[0]!.message
 				: failures.map(({ action, message: failureMessage }) => `${action.path}: ${failureMessage}`).join("\n");
 		throw new ExecutePatchError(
 			message,

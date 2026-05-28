@@ -22,15 +22,15 @@ type NativeCompactionFailureReason =
 	| "payload-model-mismatch";
 
 export type NativeCompactionSupportOptions = {
-	enabled?: boolean;
-	supportedProviders?: readonly string[];
-	supportedApis?: readonly string[];
+	enabled?: boolean | undefined;
+	supportedProviders?: readonly string[] | undefined;
+	supportedApis?: readonly string[] | undefined;
 };
 
 export type ResponsesCompatibleRequestPayload = {
 	model: string;
 	input: unknown[];
-	instructions?: unknown;
+	instructions?: unknown | undefined;
 	[key: string]: unknown;
 };
 
@@ -40,21 +40,21 @@ export type NativeCompactionRuntime = {
 	apiFamily: DefaultSupportedApi;
 	model: string;
 	baseUrl: string;
-	apiKey?: string;
-	headers?: Record<string, string>;
+	apiKey?: string | undefined;
+	headers?: Record<string, string> | undefined;
 	compactPath: string;
 	compactUrl: string;
-	payload?: ResponsesCompatibleRequestPayload;
+	payload?: ResponsesCompatibleRequestPayload | undefined;
 	currentModel: RuntimeModel;
 };
 
 export type NativeCompactionEnvironmentFailure = {
 	ok: false;
 	reason: NativeCompactionFailureReason;
-	provider?: string;
-	api?: string;
-	model?: string;
-	baseUrl?: string;
+	provider?: string | undefined;
+	api?: string | undefined;
+	model?: string | undefined;
+	baseUrl?: string | undefined;
 };
 
 export type NativeCompactionEnvironmentSuccess = {
@@ -110,12 +110,12 @@ export function isSupportedProvider(provider: string): provider is BuiltInSuppor
 async function resolveRequestAuth(
 	ctx: ExtensionContext,
 	model: RuntimeModel,
-): Promise<{ apiKey?: string; headers?: Record<string, string> }> {
+): Promise<{ apiKey?: string | undefined; headers?: Record<string, string> | undefined }> {
 	const modelRegistry = ctx.modelRegistry as {
 		getApiKeyAndHeaders?: (currentModel: RuntimeModel) => Promise<
-			| { ok: true; apiKey?: string; headers?: Record<string, string> }
+			| { ok: true; apiKey?: string | undefined; headers?: Record<string, string> | undefined }
 			| { ok: false; error: string }
-		>;
+		> | undefined;
 	};
 
 	if (typeof modelRegistry.getApiKeyAndHeaders !== "function") {
@@ -123,7 +123,7 @@ async function resolveRequestAuth(
 	}
 
 	const auth = await modelRegistry.getApiKeyAndHeaders(model);
-	return auth.ok ? { apiKey: auth.apiKey, headers: auth.headers } : {};
+	return auth && auth.ok ? { apiKey: auth.apiKey, headers: auth.headers } : {};
 }
 
 export function isSupportedApi(api: string): api is DefaultSupportedApi {
@@ -136,14 +136,14 @@ export function isResponsesCompatiblePayload(payload: unknown): payload is Respo
 	}
 
 	const candidate = payload as Record<string, unknown>;
-	return typeof candidate.model === "string" && Array.isArray(candidate.input);
+	return typeof candidate["model"]! === "string" && Array.isArray(candidate["input"]!);
 }
 
 export function getRuntimeModelDescriptor(model: RuntimeModel | undefined): {
-	provider?: string;
-	api?: string;
-	model?: string;
-	baseUrl?: string;
+	provider?: string | undefined;
+	api?: string | undefined;
+	model?: string | undefined;
+	baseUrl?: string | undefined;
 } {
 	if (!model) {
 		return {};

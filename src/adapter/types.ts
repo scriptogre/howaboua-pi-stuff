@@ -16,9 +16,9 @@ export type NativeCompactionStrategy = typeof NATIVE_COMPACTION_STRATEGY;
 export type NativeCompactionShimSummary = typeof NATIVE_COMPACTION_SHIM_SUMMARY;
 
 export type NativeCompactionRequestMeta = {
-	tokensBefore?: number;
-	previousSummaryPresent?: boolean;
-	compactedKeptWindow?: boolean;
+	tokensBefore?: number | undefined;
+	previousSummaryPresent?: boolean | undefined;
+	compactedKeptWindow?: boolean | undefined;
 };
 
 export type NativeCompactionIdentity = {
@@ -31,18 +31,18 @@ export type NativeCompactionIdentity = {
 export type NativeCompactionDetails = NativeCompactionIdentity & {
 	strategy: NativeCompactionStrategy;
 	compactedWindow: unknown[];
-	compactResponseId?: string;
+	compactResponseId?: string | undefined;
 	createdAt: string;
-	requestMeta?: NativeCompactionRequestMeta;
+	requestMeta?: NativeCompactionRequestMeta | undefined;
 };
 
 export type NativeCompactionEntry = CompactionEntry<NativeCompactionDetails>;
 
 export type CreateNativeCompactionDetailsInput = NativeCompactionIdentity & {
 	compactedWindow: unknown[];
-	compactResponseId?: string;
-	createdAt?: string;
-	requestMeta?: NativeCompactionRequestMeta;
+	compactResponseId?: string | undefined;
+	createdAt?: string | undefined;
+	requestMeta?: NativeCompactionRequestMeta | undefined;
 };
 
 export type CreateNativeCompactionShimResultInput = {
@@ -145,10 +145,10 @@ export function isNativeCompactionIdentity(value: unknown): value is NativeCompa
 	}
 
 	return (
-		isNonEmptyString(value.provider) &&
-		isNonEmptyString(value.api) &&
-		isNonEmptyString(value.model) &&
-		isNonEmptyString(value.baseUrl)
+		isNonEmptyString(value["provider"]!) &&
+		isNonEmptyString(value["api"]!) &&
+		isNonEmptyString(value["model"]!) &&
+		isNonEmptyString(value["baseUrl"]!)
 	);
 }
 
@@ -159,21 +159,21 @@ export function isNativeCompactionDetails(value: unknown): value is NativeCompac
 	const candidate = value as Record<string, unknown>;
 
 	return (
-		candidate.strategy === NATIVE_COMPACTION_STRATEGY &&
-		isNonEmptyString(candidate.provider) &&
-		isNonEmptyString(candidate.api) &&
-		isNonEmptyString(candidate.model) &&
-		isNonEmptyString(candidate.baseUrl) &&
-		Array.isArray(candidate.compactedWindow) &&
-		candidate.compactedWindow.every(isCompactedWindowItem) &&
-		isNonEmptyString(candidate.createdAt) &&
-		(candidate.compactResponseId === undefined || isNonEmptyString(candidate.compactResponseId)) &&
-		(candidate.requestMeta === undefined || isNativeCompactionRequestMeta(candidate.requestMeta))
+		candidate["strategy"] === NATIVE_COMPACTION_STRATEGY &&
+		isNonEmptyString(candidate["provider"]!) &&
+		isNonEmptyString(candidate["api"]!) &&
+		isNonEmptyString(candidate["model"]!) &&
+		isNonEmptyString(candidate["baseUrl"]!) &&
+		Array.isArray(candidate["compactedWindow"]!) &&
+		candidate["compactedWindow"]!.every(isCompactedWindowItem) &&
+		isNonEmptyString(candidate["createdAt"]!) &&
+		(candidate["compactResponseId"] === undefined || isNonEmptyString(candidate["compactResponseId"]!)) &&
+		(candidate["requestMeta"] === undefined || isNativeCompactionRequestMeta(candidate["requestMeta"]!))
 	);
 }
 
 export function isNativeCompactionEntry(value: unknown): value is NativeCompactionEntry {
-	return isRecord(value) && value.type === "compaction" && isNativeCompactionDetails(value.details);
+	return isRecord(value) && value["type"] === "compaction" && isNativeCompactionDetails(value["details"]!);
 }
 
 export function isNativeCompactionShimSummary(value: unknown): value is NativeCompactionShimSummary {

@@ -80,7 +80,7 @@ test("createViewImageTool uses resized reader by default and strips text output"
 
 	assert.deepEqual(calls, ["resized"]);
 	assert.equal(result.content.length, 1);
-	assert.deepEqual(result.content[0], { type: "image", data: PNG_BASE64, mimeType: "image/png" });
+	assert.deepEqual(result.content[0]!, { type: "image", data: PNG_BASE64, mimeType: "image/png" });
 });
 
 test("createViewImageTool uses original reader when requested", async () => {
@@ -106,7 +106,7 @@ test("createViewImageTool uses original reader when requested", async () => {
 
 	assert.deepEqual(calls, ["original"]);
 	assert.equal(result.content.length, 1);
-	assert.equal(result.content[0]?.type, "image");
+	assert.equal(result.content[0]!?.type, "image");
 });
 
 test("createViewImageTool rejects missing paths and directories with codex-like errors", async () => {

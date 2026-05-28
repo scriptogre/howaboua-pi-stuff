@@ -14,15 +14,15 @@ const WRITE_STDIN_PARAMETERS = Type.Object({
 
 interface WriteStdinParams {
 	session_id: number;
-	chars?: string;
-	yield_time_ms?: number;
-	max_output_tokens?: number;
+	chars?: string | undefined;
+	yield_time_ms?: number | undefined;
+	max_output_tokens?: number | undefined;
 }
 
 interface FormattedExecTranscript {
 	output: string;
-	sessionId?: number;
-	exitCode?: number;
+	sessionId?: number | undefined;
+	exitCode?: number | undefined;
 }
 
 function parseFormattedExecTranscript(text: string): FormattedExecTranscript {
@@ -33,8 +33,8 @@ function parseFormattedExecTranscript(text: string): FormattedExecTranscript {
 	const exitCodeMatch = text.match(/Process exited with code (-?\d+)/);
 	return {
 		output,
-		sessionId: sessionMatch ? Number(sessionMatch[1]) : undefined,
-		exitCode: exitCodeMatch ? Number(exitCodeMatch[1]) : undefined,
+		sessionId: sessionMatch ? Number(sessionMatch[1]!) : undefined,
+		exitCode: exitCodeMatch ? Number(exitCodeMatch[1]!) : undefined,
 	};
 }
 
@@ -69,7 +69,7 @@ function renderTerminalText(text: string): string {
 	return committed + line.join("");
 }
 
-function getResultState(result: { details?: unknown; content: Array<{ type: string; text?: string }> }): FormattedExecTranscript {
+function getResultState(result: { details?: unknown | undefined; content: Array<{ type: string; text?: string | undefined }> }): FormattedExecTranscript {
 	const details = isUnifiedExecResult(result.details) ? result.details : undefined;
 	const content = result.content.find((item) => item.type === "text");
 	if (details) {

@@ -10,7 +10,7 @@ interface ImageGenerationCallItem {
 	id: string;
 	status: string;
 	result: string | null;
-	revised_prompt?: string;
+	revised_prompt?: string | undefined;
 }
 
 interface ImageGenerationCallBlock {
@@ -21,7 +21,7 @@ interface ImageGenerationCallBlock {
 type InternalAssistantContent = Extract<Message, { role: "assistant" }>["content"][number] | ImageGenerationCallBlock;
 
 export interface OpenAIResponsesStreamOptions {
-	serviceTier?: ResponseCreateParamsStreaming["service_tier"];
+	serviceTier?: ResponseCreateParamsStreaming["service_tier"] | undefined;
 	resolveServiceTier?: (
 		responseServiceTier: ResponseCreateParamsStreaming["service_tier"] | undefined,
 		requestServiceTier: ResponseCreateParamsStreaming["service_tier"] | undefined,
@@ -32,11 +32,11 @@ export interface OpenAIResponsesStreamOptions {
 type TextSignaturePhase = "commentary" | "final_answer";
 
 interface ConvertResponsesMessagesOptions {
-	includeSystemPrompt?: boolean;
+	includeSystemPrompt?: boolean | undefined;
 }
 
 interface ConvertResponsesToolsOptions {
-	strict?: boolean | null;
+	strict?: boolean | null | undefined;
 }
 
 export const CODEX_TOOL_CALL_PROVIDERS = new Set(["openai", "openai-codex", "opencode"]);
@@ -78,17 +78,17 @@ function isImageGenerationCallBlock(block: InternalAssistantContent): block is I
 function sanitizeImageGenerationCallItem(item: unknown): ImageGenerationCallItem | undefined {
 	if (!item || typeof item !== "object") return undefined;
 	const candidate = item as Record<string, unknown>;
-	if (candidate.type !== "image_generation_call") return undefined;
-	if (typeof candidate.id !== "string" || candidate.id === "") return undefined;
-	if (typeof candidate.status !== "string" || candidate.status === "") return undefined;
-	if (!(typeof candidate.result === "string" || candidate.result === null)) return undefined;
+	if (candidate["type"] !== "image_generation_call") return undefined;
+	if (typeof candidate["id"]! !== "string" || candidate["id"] === "") return undefined;
+	if (typeof candidate["status"]! !== "string" || candidate["status"] === "") return undefined;
+	if (!(typeof candidate["result"]! === "string" || candidate["result"] === null)) return undefined;
 
 	return {
 		type: "image_generation_call",
-		id: candidate.id,
-		status: candidate.status,
-		result: candidate.result,
-		...(typeof candidate.revised_prompt === "string" ? { revised_prompt: candidate.revised_prompt } : {}),
+		id: candidate["id"]!,
+		status: candidate["status"]!,
+		result: candidate["result"]!,
+		...(typeof candidate["revised_prompt"]! === "string" ? { revised_prompt: candidate["revised_prompt"]! } : {}),
 	};
 }
 
@@ -229,16 +229,16 @@ function transformMessages(
 }
 
 function encodeTextSignatureV1(id: string, phase?: string): string {
-	const payload: { v: 1; id: string; phase?: string } = { v: 1, id };
+	const payload: { v: 1; id: string; phase?: string | undefined } = { v: 1, id };
 	if (phase) payload.phase = phase;
 	return JSON.stringify(payload);
 }
 
-function parseTextSignature(signature: string | undefined): { id: string; phase?: TextSignaturePhase } | undefined {
+function parseTextSignature(signature: string | undefined): { id: string; phase?: TextSignaturePhase | undefined } | undefined {
 	if (!signature) return undefined;
 	if (signature.startsWith("{")) {
 		try {
-			const parsed = JSON.parse(signature) as { v?: number; id?: string; phase?: TextSignaturePhase | string };
+			const parsed = JSON.parse(signature) as { v?: number | undefined; id?: string | undefined; phase?: TextSignaturePhase | string | undefined };
 			if (parsed.v === 1 && typeof parsed.id === "string") {
 				return parsed.phase === "commentary" || parsed.phase === "final_answer"
 					? { id: parsed.id, phase: parsed.phase }
@@ -270,7 +270,7 @@ export function convertResponsesMessages<TApi extends Api>(
 	const normalizeToolCallId = (id: string, _targetModel: Model<TApi>, source: Extract<Message, { role: "assistant" }>) => {
 		if (!allowedToolCallProviders.has(model.provider)) return normalizeIdPart(id);
 		if (!id.includes("|")) return normalizeIdPart(id);
-		const [callId, itemId] = id.split("|");
+		const [callId, itemId] = id.split("|") as [string, string | undefined];
 		const normalizedCallId = normalizeIdPart(callId);
 		const isForeignToolCall = source.provider !== model.provider || source.api !== model.api;
 		let normalizedItemId = isForeignToolCall ? buildForeignResponsesItemId(itemId ?? "") : normalizeIdPart(itemId ?? "");
@@ -351,7 +351,7 @@ export function convertResponsesMessages<TApi extends Api>(
 							})),
 					]
 				: sanitizeSurrogates(hasText ? textResult : "(see attached image)");
-			messages.push({ type: "function_call_output", call_id: callId, output });
+			messages.push({ type: "function_call_output", call_id: callId!, output });
 		}
 		msgIndex++;
 	}
@@ -381,7 +381,7 @@ export async function processResponsesStream<TApi extends Api>(
 	const blockIndex = () => blocks.length - 1;
 	type ThinkingBlock = Extract<AssistantMessage["content"][number], { type: "thinking" }>;
 	type TextBlock = Extract<AssistantMessage["content"][number], { type: "text" }>;
-	type ToolCallBlock = Extract<AssistantMessage["content"][number], { type: "toolCall" }> & { partialJson?: string };
+	type ToolCallBlock = Extract<AssistantMessage["content"][number], { type: "toolCall" }> & { partialJson?: string | undefined };
 
 	type ReasoningState = {
 		kind: "reasoning";
@@ -637,7 +637,7 @@ export async function processResponsesStream<TApi extends Api>(
 			throw new Error(details || "Unknown error");
 		} else if (event.type === "response.failed") {
 			const error = event.response?.error;
-			const details = (event.response as { incomplete_details?: { reason?: string } } | undefined)?.incomplete_details;
+			const details = (event.response as { incomplete_details?: { reason?: string | undefined } | undefined } | undefined)?.incomplete_details;
 			const msg = error
 				? `${error.code || "unknown"}: ${error.message || "no message"}`
 				: details?.reason

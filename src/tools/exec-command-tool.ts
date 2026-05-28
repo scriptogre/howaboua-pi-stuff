@@ -22,12 +22,12 @@ const EXEC_COMMAND_PARAMETERS = Type.Object({
 
 interface ExecCommandParams {
 	cmd: string;
-	workdir?: string;
-	shell?: string;
-	tty?: boolean;
-	yield_time_ms?: number;
-	max_output_tokens?: number;
-	login?: boolean;
+	workdir?: string | undefined;
+	shell?: string | undefined;
+	tty?: boolean | undefined;
+	yield_time_ms?: number | undefined;
+	max_output_tokens?: number | undefined;
+	login?: boolean | undefined;
 }
 
 function prepareExecCommandArguments(args: unknown): ExecCommandParams {
@@ -38,13 +38,13 @@ function prepareExecCommandArguments(args: unknown): ExecCommandParams {
 	const record = args as Record<string, unknown>;
 	const prepared: Record<string, unknown> = { ...record };
 	if (!("cmd" in prepared) && "command" in prepared) {
-		prepared.cmd = prepared.command;
+		prepared["cmd"] = prepared["command"]!;
 	}
 	if (!("workdir" in prepared)) {
 		if ("cwd" in prepared) {
-			prepared.workdir = prepared.cwd;
+			prepared["workdir"] = prepared["cwd"]!;
 		} else if ("working_directory" in prepared) {
-			prepared.workdir = prepared.working_directory;
+			prepared["workdir"] = prepared["working_directory"]!;
 		}
 	}
 	return prepared as unknown as ExecCommandParams;
@@ -81,12 +81,12 @@ function createEmptyResultComponent(): Container {
 }
 
 interface ExecCommandRenderContextLike {
-	toolCallId?: string;
-	invalidate?: () => void;
+	toolCallId?: string | undefined;
+	invalidate?: () => void | undefined;
 }
 
 const renderExecCommandCallWithOptionalContext: any = (
-	args: { cmd?: unknown },
+	args: { cmd?: unknown | undefined },
 	theme: { fg(role: string, text: string): string; bold(text: string): string },
 	context: ExecCommandRenderContextLike | undefined,
 	tracker: ExecCommandTracker,
@@ -104,7 +104,7 @@ const renderExecCommandCallWithOptionalContext: any = (
 };
 
 const renderExecCommandResultWithOptionalContext: any = (
-	result: { content: Array<{ type: string; text?: string }>; details?: unknown },
+	result: { content: Array<{ type: string; text?: string | undefined }>; details?: unknown | undefined },
 	options: { expanded: boolean; isPartial: boolean },
 	theme: { fg(role: string, text: string): string },
 	context: ExecCommandRenderContextLike | undefined,
@@ -139,7 +139,7 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 		description: "Runs a shell command, returning output or a session ID for ongoing interaction.",
 		promptSnippet: "Run a command.",
 		parameters: EXEC_COMMAND_PARAMETERS,
-		prepareArguments: prepareExecCommandArguments,
+		prepareArguments: prepareExecCommandArguments as (args: unknown) => { cmd: string; workdir?: string; shell?: string; tty?: boolean; yield_time_ms?: number; max_output_tokens?: number; login?: boolean },
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
 			if (signal?.aborted) {
 				throw new Error("exec_command aborted");
@@ -158,10 +158,10 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				details: result,
 			};
 		},
-		renderCall: ((args: { cmd?: unknown }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: ExecCommandRenderContextLike) =>
+		renderCall: ((args: { cmd?: unknown | undefined }, theme: { fg(role: string, text: string): string; bold(text: string): string }, context?: ExecCommandRenderContextLike) =>
 			renderExecCommandCallWithOptionalContext(args, theme, context, tracker)) as any,
 		renderResult: ((
-			result: { content: Array<{ type: string; text?: string }>; details?: unknown },
+			result: { content: Array<{ type: string; text?: string | undefined }>; details?: unknown | undefined },
 			options: { expanded: boolean; isPartial: boolean },
 			theme: { fg(role: string, text: string): string },
 			context?: ExecCommandRenderContextLike,

@@ -4,8 +4,8 @@ import type { NativeCompactionRequestBody } from "./serializer.ts";
 const JSON_CONTENT_TYPE = "application/json";
 
 type CompactResponseEnvelope = {
-	id?: string;
-	created_at?: number | string;
+	id?: string | undefined;
+	created_at?: number | string | undefined;
 	output: unknown[];
 	[key: string]: unknown;
 };
@@ -23,18 +23,18 @@ export type NativeCompactionClientSuccess = {
 	ok: true;
 	status: number;
 	compactedWindow: unknown[];
-	compactResponseId?: string;
-	createdAt?: string;
+	compactResponseId?: string | undefined;
+	createdAt?: string | undefined;
 	response: CompactResponseEnvelope;
 };
 
 export type NativeCompactionClientFailure = {
 	ok: false;
 	reason: NativeCompactionClientFailureReason;
-	status?: number;
-	errorMessage?: string;
-	responseText?: string;
-	responseJson?: unknown;
+	status?: number | undefined;
+	errorMessage?: string | undefined;
+	responseText?: string | undefined;
+	responseJson?: unknown | undefined;
 };
 
 export type NativeCompactionClientResult = NativeCompactionClientSuccess | NativeCompactionClientFailure;
@@ -42,7 +42,7 @@ export type NativeCompactionClientResult = NativeCompactionClientSuccess | Nativ
 export type ExecuteNativeCompactionOptions = {
 	runtime: NativeCompactionRuntime;
 	request: NativeCompactionRequestBody;
-	signal?: AbortSignal;
+	signal?: AbortSignal | undefined;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -80,7 +80,7 @@ function isCompactOutputItem(value: unknown): value is Record<string, unknown> {
 }
 
 function isCompactResponseEnvelope(value: unknown): value is CompactResponseEnvelope {
-	return isRecord(value) && Array.isArray(value.output) && value.output.every(isCompactOutputItem);
+	return isRecord(value) && Array.isArray(value["output"]!) && value["output"]!.every(isCompactOutputItem);
 }
 
 function decodeJwtPayload(token: string): Record<string, unknown> | undefined {
@@ -105,7 +105,7 @@ function extractCodexAccountId(token: string): string | undefined {
 		return undefined;
 	}
 
-	const accountId = authClaims.chatgpt_account_id;
+	const accountId = authClaims["chatgpt_account_id"]!;
 	return typeof accountId === "string" && accountId.trim().length > 0 ? accountId.trim() : undefined;
 }
 
@@ -164,7 +164,7 @@ export async function executeNativeCompaction(
 			method: "POST",
 			headers,
 			body: JSON.stringify(request),
-			signal,
+			...(signal ? { signal } : {}),
 		});
 		const responseText = await response.text();
 

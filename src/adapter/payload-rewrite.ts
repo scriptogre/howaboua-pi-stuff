@@ -18,7 +18,7 @@ import {
 import { isAdapterContextExcludedCustomMessageEntry } from "./context-filter.ts";
 
 export type FreshAuthoritativePreamble = {
-	instructions?: string;
+	instructions?: string | undefined;
 	leadingInput: ResponsesInputMessageItem[];
 	trailingInput: ResponsesInputMessageItem[];
 };
@@ -32,7 +32,7 @@ export type SerializedReplaySlice = {
 export type NativeReplaySegments = {
 	boundaryIndex: number;
 	firstKeptEntryIndex: number;
-	instructions?: string;
+	instructions?: string | undefined;
 	freshPreamble: ResponsesInputMessageItem[];
 	trailingPreamble: ResponsesInputMessageItem[];
 	compactionSummary: ResponsesInputItem[];
@@ -64,7 +64,7 @@ export type NativeReplayPayloadRewriteFailure = {
 		actual: string[];
 		expected: string[];
 		mismatches: string[];
-	};
+	} | undefined;
 };
 
 export type NativeReplayPayloadRewriteResult =
@@ -89,16 +89,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isResponsesInputContentItem(value: unknown): value is ResponsesInputContentItem {
-	if (!isRecord(value) || typeof value.type !== "string") {
+	if (!isRecord(value) || typeof value["type"]! !== "string") {
 		return false;
 	}
 
-	if (value.type === "input_text") {
-		return typeof value.text === "string";
+	if (value["type"] === "input_text") {
+		return typeof value["text"]! === "string";
 	}
 
-	if (value.type === "input_image") {
-		return value.detail === "auto" && typeof value.image_url === "string";
+	if (value["type"] === "input_image") {
+		return value["detail"] === "auto" && typeof value["image_url"]! === "string";
 	}
 
 	return false;
@@ -113,7 +113,7 @@ function isPreambleRole(value: ResponsesInputMessageItem["role"]): value is "dev
 }
 
 function isResponsesInputMessageItem(value: unknown): value is ResponsesInputMessageItem {
-	if (!isRecord(value) || !isResponsesInputMessageRole(value.role)) {
+	if (!isRecord(value) || !isResponsesInputMessageRole(value["role"]!)) {
 		return false;
 	}
 
@@ -210,7 +210,7 @@ function areEquivalentValues(left: unknown, right: unknown): boolean {
 		}
 
 		for (let index = 0; index < left.length; index++) {
-			if (!areEquivalentValues(left[index], right[index])) {
+			if (!areEquivalentValues(left[index]!, right[index]!)) {
 				return false;
 			}
 		}
@@ -230,7 +230,7 @@ function areEquivalentValues(left: unknown, right: unknown): boolean {
 		}
 
 		for (const key of leftKeys) {
-			if (!areEquivalentValues(left[key], right[key])) {
+			if (!areEquivalentValues(left[key]!, right[key]!)) {
 				return false;
 			}
 		}
@@ -305,17 +305,17 @@ export function extractFreshAuthoritativePreamble(
 	// or trailing position that Pi authored so provider-added suffix prompts like
 	// GPT-5's trailing developer "# Juice: 0 !important" survive replay unchanged.
 	let leadingBoundary = 0;
-	while (leadingBoundary < payload.input.length && isPromptEnvelopeItem(payload.input[leadingBoundary])) {
+	while (leadingBoundary < payload.input.length && isPromptEnvelopeItem(payload.input[leadingBoundary]!)) {
 		leadingBoundary += 1;
 	}
 
 	let trailingBoundary = payload.input.length;
-	while (trailingBoundary > leadingBoundary && isPromptEnvelopeItem(payload.input[trailingBoundary - 1])) {
+	while (trailingBoundary > leadingBoundary && isPromptEnvelopeItem((payload.input[trailingBoundary - 1])!)) {
 		trailingBoundary -= 1;
 	}
 
 	for (let index = leadingBoundary; index < trailingBoundary; index++) {
-		if (isPromptEnvelopeItem(payload.input[index])) {
+		if (isPromptEnvelopeItem(payload.input[index]!)) {
 			return undefined;
 		}
 	}

@@ -53,15 +53,15 @@ export function isSmallFormattingCommand(tokens: string[]): boolean {
 	}
 	if (head === "head") {
 		if (tail.length === 0) return true;
-		if (tail.length === 1) return tail[0].startsWith("-");
-		if (tail.length === 2 && (tail[0] === "-n" || tail[0] === "-c") && /^\d+$/.test(tail[1])) return true;
+		if (tail.length === 1) return tail[0]!.startsWith("-");
+		if (tail.length === 2 && (tail[0] === "-n" || tail[0] === "-c") && /^\d+$/.test(tail[1]!)) return true;
 		return false;
 	}
 	if (head === "tail") {
 		if (tail.length === 0) return true;
-		if (tail.length === 1) return tail[0].startsWith("-");
+		if (tail.length === 1) return tail[0]!.startsWith("-");
 		if (tail.length === 2 && (tail[0] === "-n" || tail[0] === "-c")) {
-			const value = tail[1]?.startsWith("+") ? tail[1].slice(1) : tail[1];
+			const value = tail[1]!?.startsWith("+") ? tail[1]!.slice(1) : tail[1]!;
 			if (value && /^\d+$/.test(value)) return true;
 		}
 		return false;
@@ -137,14 +137,14 @@ function parseMainTokens(tokens: string[]): ShellAction | null {
 		]);
 		const nonFlags = candidates.filter((token) => !token.startsWith("-"));
 		if (hasFilesFlag) {
-			const path = nonFlags[0];
+			const path = nonFlags[0]!;
 			return { kind: "list", command, path: path ? shortDisplayPath(path) : undefined };
 		}
 		return {
 			kind: "search",
 			command,
-			query: nonFlags[0],
-			path: nonFlags[1] ? shortDisplayPath(nonFlags[1]) : undefined,
+			query: nonFlags[0]!,
+			path: nonFlags[1]! ? shortDisplayPath(nonFlags[1]!) : undefined,
 		};
 	}
 
@@ -184,8 +184,8 @@ function parseMainTokens(tokens: string[]): ShellAction | null {
 		return {
 			kind: "search",
 			command,
-			query: nonFlags[0],
-			path: nonFlags[1] ? shortDisplayPath(nonFlags[1]) : undefined,
+			query: nonFlags[0]!,
+			path: nonFlags[1]! ? shortDisplayPath(nonFlags[1]!) : undefined,
 		};
 	}
 
@@ -269,7 +269,7 @@ function parseGrepLike(command: string, tail: string[]): ShellAction {
 	let afterDoubleDash = false;
 
 	for (let index = 0; index < args.length; index++) {
-		const arg = args[index];
+		const arg = args[index]!;
 		if (afterDoubleDash) {
 			operands.push(arg);
 			continue;
@@ -279,12 +279,12 @@ function parseGrepLike(command: string, tail: string[]): ShellAction {
 			continue;
 		}
 		if (arg === "-e" || arg === "--regexp") {
-			if (!pattern) pattern = args[index + 1];
+			if (!pattern) pattern = (args[index + 1])!;
 			index += 1;
 			continue;
 		}
 		if (arg === "-f" || arg === "--file") {
-			if (!pattern) pattern = args[index + 1];
+			if (!pattern) pattern = (args[index + 1])!;
 			index += 1;
 			continue;
 		}
@@ -306,9 +306,9 @@ function parseGrepLike(command: string, tail: string[]): ShellAction {
 	}
 
 	const hasPattern = pattern !== undefined;
-	const query = pattern ?? operands[0];
+	const query = pattern ?? operands[0]!;
 	const pathIndex = hasPattern ? 0 : 1;
-	const path = operands[pathIndex] ? shortDisplayPath(operands[pathIndex]) : undefined;
+	const path = operands[pathIndex]! ? shortDisplayPath(operands[pathIndex]!) : undefined;
 
 	return { kind: "search", command, query, path };
 }
@@ -318,11 +318,11 @@ function parseFdQueryAndPath(tail: string[]): [string | undefined, string | unde
 	const candidates = skipFlagValues(args, ["-t", "--type", "-e", "--extension", "-E", "--exclude", "--search-path"]);
 	const nonFlags = candidates.filter((token) => !token.startsWith("-"));
 	if (nonFlags.length === 1) {
-		if (isPathish(nonFlags[0])) return [undefined, shortDisplayPath(nonFlags[0])];
-		return [nonFlags[0], undefined];
+		if (isPathish(nonFlags[0]!)) return [undefined, shortDisplayPath(nonFlags[0]!)];
+		return [nonFlags[0]!, undefined];
 	}
 	if (nonFlags.length >= 2) {
-		return [nonFlags[0], shortDisplayPath(nonFlags[1])];
+		return [nonFlags[0]!, shortDisplayPath(nonFlags[1]!)];
 	}
 	return [undefined, undefined];
 }
@@ -339,9 +339,9 @@ function parseFindQueryAndPath(tail: string[]): [string | undefined, string | un
 
 	let query: string | undefined;
 	for (let index = 0; index < args.length; index++) {
-		const arg = args[index];
+		const arg = args[index]!;
 		if (arg === "-name" || arg === "-iname" || arg === "-path" || arg === "-regex") {
-			query = args[index + 1];
+			query = (args[index + 1])!;
 			break;
 		}
 	}
@@ -359,14 +359,14 @@ function readAction(command: string, path: string): ShellAction {
 }
 
 function readPathFromHeadTail(args: string[], tool: "head" | "tail"): string | undefined {
-	if (args.length === 1 && !args[0].startsWith("-")) {
-		return args[0];
+	if (args.length === 1 && !args[0]!.startsWith("-")) {
+		return args[0]!;
 	}
 
 	const tokens = trimAtConnector(args);
 	let index = 0;
 	while (index < tokens.length) {
-		const token = tokens[index];
+		const token = tokens[index]!;
 		if (!token) break;
 		if (!token.startsWith("-")) {
 			return token;
@@ -391,8 +391,8 @@ function sedReadPath(args: string[]): string | undefined {
 
 	let hasRangeScript = false;
 	for (let index = 0; index < tokens.length; index++) {
-		const token = tokens[index];
-		if ((token === "-e" || token === "--expression") && isValidSedRange(tokens[index + 1])) {
+		const token = tokens[index]!;
+		if ((token === "-e" || token === "--expression") && isValidSedRange((tokens[index + 1])!)) {
 			hasRangeScript = true;
 		}
 		if (!token.startsWith("-") && isValidSedRange(token)) {
@@ -404,8 +404,8 @@ function sedReadPath(args: string[]): string | undefined {
 	const candidates = skipFlagValues(tokens, ["-e", "-f", "--expression", "--file"]);
 	const nonFlags = candidates.filter((token) => !token.startsWith("-"));
 	if (nonFlags.length === 0) return undefined;
-	if (isValidSedRange(nonFlags[0])) return nonFlags[1];
-	return nonFlags[0];
+	if (isValidSedRange(nonFlags[0]!)) return nonFlags[1]!;
+	return nonFlags[0]!;
 }
 
 function isValidSedRange(value: string | undefined): boolean {
@@ -424,7 +424,7 @@ function skipFlagValues(args: string[], flagsWithValues: string[]): string[] {
 	const out: string[] = [];
 	let skipNext = false;
 	for (let index = 0; index < args.length; index++) {
-		const token = args[index];
+		const token = args[index]!;
 		if (skipNext) {
 			skipNext = false;
 			continue;
@@ -450,7 +450,7 @@ function positionalOperands(args: string[], flagsWithValues: string[]): string[]
 	let afterDoubleDash = false;
 	let skipNext = false;
 	for (let index = 0; index < args.length; index++) {
-		const arg = args[index];
+		const arg = args[index]!;
 		if (skipNext) {
 			skipNext = false;
 			continue;
@@ -477,12 +477,12 @@ function positionalOperands(args: string[], flagsWithValues: string[]): string[]
 }
 
 function firstNonFlagOperand(args: string[], flagsWithValues: string[]): string | undefined {
-	return positionalOperands(args, flagsWithValues)[0];
+	return (positionalOperands(args, flagsWithValues)[0])!;
 }
 
 function singleNonFlagOperand(args: string[], flagsWithValues: string[]): string | undefined {
 	const operands = positionalOperands(args, flagsWithValues);
-	return operands.length === 1 ? operands[0] : undefined;
+	return operands.length === 1 ? operands[0]! : undefined;
 }
 
 function awkDataFileOperand(args: string[]): string | undefined {
@@ -491,15 +491,15 @@ function awkDataFileOperand(args: string[]): string | undefined {
 	const hasScriptFile = tokens.some((arg) => arg === "-f" || arg === "--file");
 	const candidates = skipFlagValues(tokens, ["-F", "-v", "-f", "--field-separator", "--assign", "--file"]);
 	const nonFlags = candidates.filter((arg) => !arg.startsWith("-"));
-	if (hasScriptFile) return nonFlags[0];
-	return nonFlags.length >= 2 ? nonFlags[1] : undefined;
+	if (hasScriptFile) return nonFlags[0]!;
+	return nonFlags.length >= 2 ? nonFlags[1]! : undefined;
 }
 
 function pythonWalksFiles(args: string[]): boolean {
 	const tokens = trimAtConnector(args);
 	for (let index = 0; index < tokens.length; index++) {
 		if (tokens[index] !== "-c") continue;
-		const script = tokens[index + 1];
+		const script = (tokens[index + 1])!;
 		if (!script) continue;
 		return (
 			script.includes("os.walk") ||
@@ -541,7 +541,7 @@ function xargsIsMutatingSubcommand(tokens: string[]): boolean {
 function xargsSubcommand(tokens: string[]): string[] | undefined {
 	let index = 0;
 	while (index < tokens.length) {
-		const token = tokens[index];
+		const token = tokens[index]!;
 		if (token === "--") return tokens.slice(index + 1);
 		if (!token.startsWith("-")) return tokens.slice(index);
 		const takesValue = token === "-E" || token === "-e" || token === "-I" || token === "-L" || token === "-n" || token === "-P" || token === "-s";
@@ -558,8 +558,8 @@ function cdTarget(args: string[]): string | undefined {
 	if (args.length === 0) return undefined;
 	let target: string | undefined;
 	for (let index = 0; index < args.length; index++) {
-		const arg = args[index];
-		if (arg === "--") return args[index + 1];
+		const arg = args[index]!;
+		if (arg === "--") return (args[index + 1])!;
 		if (arg === "-L" || arg === "-P") continue;
 		if (arg.startsWith("-")) continue;
 		target = arg;

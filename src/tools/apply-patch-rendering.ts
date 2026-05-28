@@ -13,7 +13,7 @@ interface PreviewLine {
 interface FilePreview {
 	verb: "Added" | "Deleted" | "Edited";
 	path: string;
-	movePath?: string;
+	movePath?: string | undefined;
 	added: number;
 	removed: number;
 	lines: PreviewLine[];
@@ -37,7 +37,7 @@ export function formatApplyPatchSummary(patchText: string, cwd = process.cwd()):
 	const lines: string[] = [];
 
 	if (files.length === 1) {
-		const [file] = files;
+		const file = files[0]!;
 		lines.push(`${bulletHeader(file.verb, formatPatchTarget(file.path, file.movePath, cwd))} ${renderCounts(file.added, file.removed)}`);
 		return lines.join("\n");
 	}
@@ -69,7 +69,7 @@ export function formatApplyPatchCall(patchText: string, cwd = process.cwd()): st
 	const lines: string[] = [];
 
 	if (files.length === 1) {
-		const [file] = files;
+		const file = files[0]!;
 		lines.push(`${bulletHeader(file.verb, formatPatchTarget(file.path, file.movePath, cwd))} ${renderCounts(file.added, file.removed)}`);
 		lines.push(...file.lines.map((line) => formatPreviewLine(line, file.lines)));
 		return lines.join("\n");
@@ -105,7 +105,7 @@ export function renderApplyPatchCall(patchText: string, cwd = process.cwd()): st
 	const lines: string[] = [];
 
 	if (files.length === 1) {
-		const [file] = files;
+		const file = files[0]!;
 		lines.push(`${bulletHeader(file.verb, formatPatchTarget(file.path, file.movePath, cwd))} ${renderCounts(file.added, file.removed)}`);
 		lines.push(...renderPreviewLines(file.lines));
 		return lines.join("\n");
@@ -171,7 +171,7 @@ function buildUpdatePreview(action: ParsedPatchAction, cwd: string): { added: nu
 	let index = 0;
 
 	while (index < action.lines.length) {
-		const line = action.lines[index];
+		const line = action.lines[index]!;
 		if (line === "*** End of File") {
 			break;
 		}
@@ -182,8 +182,8 @@ function buildUpdatePreview(action: ParsedPatchAction, cwd: string): { added: nu
 
 		index += 1;
 		const sectionLines: string[] = [];
-		while (index < action.lines.length && !action.lines[index].startsWith("@@") && action.lines[index] !== "*** End of File") {
-			sectionLines.push(action.lines[index]);
+		while (index < action.lines.length && !action.lines[index]!.startsWith("@@") && action.lines[index] !== "*** End of File") {
+			sectionLines.push(action.lines[index]!);
 			index += 1;
 		}
 
@@ -257,7 +257,7 @@ function renderPreviewLines(lines: PreviewLine[]): string[] {
 
 function normalizePatchLine(rawLine: string): PreviewLine {
 	const normalized = rawLine === "" ? " " : rawLine;
-	const marker = normalized[0];
+	const marker = normalized[0]!;
 	if (marker !== " " && marker !== "+" && marker !== "-") {
 		return { lineNumber: 0, marker: " ", text: rawLine };
 	}
@@ -291,7 +291,7 @@ function findSequence(lines: string[], context: string[], start: number, normali
 	for (let lineIndex = start; lineIndex <= lines.length - context.length; lineIndex += 1) {
 		let matches = true;
 		for (let contextIndex = 0; contextIndex < context.length; contextIndex += 1) {
-			if (normalize(lines[lineIndex + contextIndex]) !== normalize(context[contextIndex])) {
+			if (normalize((lines[lineIndex + contextIndex])!) !== normalize(context[contextIndex]!)) {
 				matches = false;
 				break;
 			}

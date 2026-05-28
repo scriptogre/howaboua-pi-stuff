@@ -12,10 +12,10 @@ export function ensureBundledApplyPatchOnPath(env: NodeJS.ProcessEnv = process.e
 	if (!existsSync(wrapperPath)) {
 		return undefined;
 	}
-	const currentPath = env.PATH ?? "";
+	const currentPath = env["PATH"] ?? "";
 	const entries = currentPath.split(delimiter).filter(Boolean);
 	if (!entries.includes(binDir)) {
-		env.PATH = [binDir, ...entries].join(delimiter);
+		env["PATH"] = [binDir, ...entries].join(delimiter);
 	}
 	return binDir;
 }

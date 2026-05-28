@@ -51,7 +51,7 @@ function clampOpenAIPromptCacheKey(key: string | undefined): string | undefined 
 }
 let _os: { platform(): string; release(): string; arch(): string } | null = null;
 
-if (typeof process !== "undefined" && (process.versions?.node || process.versions?.bun)) {
+if (typeof process !== "undefined" && (process.versions?.node || process.versions["bun"]!)) {
 	dynamicImport("node:os")
 		.then((module) => {
 			_os = module;
@@ -69,7 +69,7 @@ interface SavedGeneratedImage {
 	responseId: string | undefined;
 	callId: string;
 	outputFormat: string;
-	revisedPrompt?: string;
+	revisedPrompt?: string | undefined;
 }
 
 interface ImageDisplayMessageDetails {
@@ -87,10 +87,10 @@ interface QueuedImageActivity extends PendingImageDisplay {
 
 interface SurfacedWebSearch {
 	callId: string;
-	status?: string;
-	query?: string;
+	status?: string | undefined;
+	query?: string | undefined;
 	queries: string[];
-	sources: Array<{ title?: string; url: string }>;
+	sources: Array<{ title?: string | undefined; url: string }>;
 }
 
 interface QueuedWebSearchActivity {
@@ -107,7 +107,7 @@ interface CachedImagePreview {
 }
 
 interface WebSocketLike {
-	readyState?: number;
+	readyState?: number | undefined;
 	send(data: string): void;
 	close(code?: number, reason?: string): void;
 	addEventListener(type: string, listener: (event: unknown) => void): void;
@@ -115,21 +115,21 @@ interface WebSocketLike {
 }
 
 interface WebSocketConstructorLike {
-	new (url: string, options?: { headers?: Record<string, string> } | string | string[]): WebSocketLike;
+	new (url: string, options?: { headers?: Record<string, string> | undefined } | string | string[]): WebSocketLike;
 }
 
 interface SessionWebSocketCacheEntry {
 	socket: WebSocketLike;
 	busy: boolean;
-	idleTimer?: ReturnType<typeof setTimeout>;
-	continuation?: CachedWebSocketContinuationState;
+	idleTimer?: ReturnType<typeof setTimeout> | undefined;
+	continuation?: CachedWebSocketContinuationState | undefined;
 }
 
 interface AcquiredWebSocket {
 	socket: WebSocketLike;
-	entry?: SessionWebSocketCacheEntry;
+	entry?: SessionWebSocketCacheEntry | undefined;
 	reused: boolean;
-	release: (options?: { keep?: boolean }) => void;
+	release: (options?: { keep?: boolean | undefined }) => void;
 }
 
 export interface CachedWebSocketContinuationState {
@@ -153,11 +153,11 @@ export interface CachedWebSocketRequestBodyResult {
 	decision: WebSocketContinuationDecision;
 }
 
-type CodexProviderStreamOptions = SimpleStreamOptions & { serviceTier?: ServiceTier; textVerbosity?: string; reasoningSummary?: string };
+type CodexProviderStreamOptions = SimpleStreamOptions & { serviceTier?: ServiceTier | undefined; textVerbosity?: string | undefined; reasoningSummary?: string | undefined };
 type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
 type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
-	reasoningEffort?: CodexReasoningEffort;
-	websocketConnectTimeoutMs?: number;
+	reasoningEffort?: CodexReasoningEffort | undefined;
+	websocketConnectTimeoutMs?: number | undefined;
 };
 
 let fsPromisesPromise: Promise<typeof import("node:fs/promises")> | undefined;
@@ -169,35 +169,35 @@ export interface ResponsesBody {
 	model: string;
 	store: boolean;
 	stream: boolean;
-	instructions?: string;
-	previous_response_id?: string;
+	instructions?: string | undefined;
+	previous_response_id?: string | undefined;
 	input: unknown[];
 	text: { verbosity: string };
 	include: string[];
-	prompt_cache_key?: string;
+	prompt_cache_key?: string | undefined;
 	tool_choice: "auto";
 	parallel_tool_calls: boolean;
-	temperature?: number;
-	service_tier?: string;
-	tools?: unknown[];
+	temperature?: number | undefined;
+	service_tier?: string | undefined;
+	tools?: unknown[] | undefined;
 	reasoning?: {
 		effort: string;
 		summary: string;
-	};
+	} | undefined;
 	[key: string]: unknown;
 }
 
 interface ResponseEnvelope {
-	id?: string;
-	status?: string;
+	id?: string | undefined;
+	status?: string | undefined;
 	usage?: {
-		input_tokens?: number;
-		output_tokens?: number;
-		total_tokens?: number;
-		input_tokens_details?: { cached_tokens?: number };
-	};
-	service_tier?: string;
-	error?: { message?: string };
+		input_tokens?: number | undefined;
+		output_tokens?: number | undefined;
+		total_tokens?: number | undefined;
+		input_tokens_details?: { cached_tokens?: number | undefined } | undefined;
+	} | undefined;
+	service_tier?: string | undefined;
+	error?: { message?: string | undefined } | undefined;
 	[key: string]: unknown;
 }
 
@@ -207,19 +207,19 @@ const websocketSessionCache = new Map<string, SessionWebSocketCacheEntry>();
 class NonRetryableProviderError extends Error {}
 
 interface StreamEventShape {
-	type?: string;
-	response?: ResponseEnvelope;
+	type?: string | undefined;
+	response?: ResponseEnvelope | undefined;
 	item?: {
-		id?: string;
-		type?: string;
-		result?: string | null;
-		output_format?: string;
-		revised_prompt?: string;
-		status?: string;
+		id?: string | undefined;
+		type?: string | undefined;
+		result?: string | null | undefined;
+		output_format?: string | undefined;
+		revised_prompt?: string | undefined;
+		status?: string | undefined;
 		[key: string]: unknown;
-	};
-	code?: string;
-	message?: string;
+	} | undefined;
+	code?: string | undefined;
+	message?: string | undefined;
 	[key: string]: unknown;
 }
 
@@ -255,7 +255,7 @@ function joinPaths(...parts: string[]): string {
 	if (parts.length === 0) return ".";
 	let result = parts[0] ?? "";
 	for (let i = 1; i < parts.length; i++) {
-		const part = parts[i];
+		const part = parts[i]!;
 		if (!part) continue;
 		if (!result || result.endsWith(PATH_SEPARATOR)) {
 			result += part.replace(/^\/+/, "");
@@ -288,7 +288,7 @@ function relativePath(from: string, to: string): string {
 	const fromSegments = splitPathSegments(normalizedFrom);
 	const toSegments = splitPathSegments(normalizedTo);
 	let shared = 0;
-	while (shared < fromSegments.length && shared < toSegments.length && fromSegments[shared] === toSegments[shared]) {
+	while (shared < fromSegments.length && shared < toSegments.length && fromSegments[shared] === toSegments[shared]!) {
 		shared++;
 	}
 	const upSegments = new Array(fromSegments.length - shared).fill("..");
@@ -304,16 +304,17 @@ async function getNodeFsPromises(): Promise<typeof import("node:fs/promises")> {
 }
 
 function getNodeFsSync(): { readFileSync(path: string): Buffer } | null {
-	if (typeof process === "undefined" || !(process.versions?.node || process.versions?.bun)) {
+	if (typeof process === "undefined" || !(process.versions?.node || process.versions["bun"]!)) {
 		return null;
 	}
-	const builtinProcess = process as typeof process & { getBuiltinModule?: (specifier: string) => unknown };
+	const builtinProcess = process as typeof process & { getBuiltinModule?: (specifier: string) => unknown | undefined };
 	if (typeof builtinProcess.getBuiltinModule !== "function") {
 		return null;
 	}
 	try {
-		const module = builtinProcess.getBuiltinModule("node:fs") as { readFileSync?: (path: string) => Buffer } | undefined;
-		return typeof module?.readFileSync === "function" ? { readFileSync: module.readFileSync } : null;
+		const module = builtinProcess.getBuiltinModule("node:fs") as { readFileSync?: unknown } | undefined;
+		if (typeof module?.readFileSync !== "function") return null;
+		return { readFileSync: module.readFileSync as (path: string) => Buffer };
 	} catch {
 		return null;
 	}
@@ -367,7 +368,7 @@ export function getOpenAICodexLatestImagePath(cwd: string): string {
 	return joinPaths(getOpenAICodexImageDirectory(cwd), OPENAI_CODEX_LATEST_IMAGE_NAME);
 }
 
-export function buildGeneratedImageDisplayText(savedImage: SavedGeneratedImage, options?: { expanded?: boolean }): string {
+export function buildGeneratedImageDisplayText(savedImage: SavedGeneratedImage, options?: { expanded?: boolean | undefined }): string {
 	const lines: string[] = [];
 	if (options?.expanded && savedImage.revisedPrompt) {
 		lines.push(`Prompt: ${savedImage.revisedPrompt}`);
@@ -378,7 +379,7 @@ export function buildGeneratedImageDisplayText(savedImage: SavedGeneratedImage, 
 
 export async function saveOpenAICodexGeneratedImage(
 	cwd: string,
-	image: { responseId?: string; callId: string; result: string; outputFormat?: string; revisedPrompt?: string },
+	image: { responseId?: string | undefined; callId: string; result: string; outputFormat?: string | undefined; revisedPrompt?: string | undefined },
 ): Promise<SavedGeneratedImage> {
 	const workspaceRoot = await resolveWorkspaceRoot(cwd);
 	const fs = await getNodeFsPromises();
@@ -507,7 +508,7 @@ function clampReasoningEffort(modelId: string, effort: string): string {
 	if (effort === "none") return effort;
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
 	const gpt5MinorMatch = /^gpt-5\.(\d+)/.exec(id);
-	const gpt5Minor = gpt5MinorMatch ? Number.parseInt(gpt5MinorMatch[1], 10) : undefined;
+	const gpt5Minor = gpt5MinorMatch ? Number.parseInt(gpt5MinorMatch[1]!, 10) : undefined;
 	if (gpt5Minor !== undefined && gpt5Minor >= 2 && effort === "minimal") return "low";
 	if (id === "gpt-5.1" && effort === "xhigh") return "high";
 	if (id === "gpt-5.1-codex-mini") return effort === "high" || effort === "xhigh" ? "high" : "medium";
@@ -553,7 +554,7 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 		stream: true,
 		instructions: context.systemPrompt || "You are a helpful assistant.",
 		input: messages,
-		text: { verbosity: ((options as { textVerbosity?: string } | undefined)?.textVerbosity ?? "low") as string },
+		text: { verbosity: ((options as { textVerbosity?: string | undefined } | undefined)?.textVerbosity ?? "low") as string },
 		include: ["reasoning.encrypted_content"],
 		prompt_cache_key: clampOpenAIPromptCacheKey(options?.sessionId),
 		tool_choice: "auto",
@@ -565,11 +566,11 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 	// `maxTokens`, so forwarding it breaks `/tree` summaries and extensions that
 	// use `ctx.navigateTree(..., { summarize: true })`.
 
-	if ((options as { temperature?: number } | undefined)?.temperature !== undefined) {
-		body.temperature = (options as { temperature?: number }).temperature;
+	if ((options as { temperature?: number | undefined } | undefined)?.temperature !== undefined) {
+		body.temperature = (options as { temperature?: number | undefined }).temperature;
 	}
 
-	const serviceTier = (options as { serviceTier?: string } | undefined)?.serviceTier;
+	const serviceTier = (options as { serviceTier?: string | undefined } | undefined)?.serviceTier;
 	if (serviceTier !== undefined) {
 		body.service_tier = serviceTier;
 	}
@@ -589,7 +590,7 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 		if (effort === null) return body;
 		body.reasoning = {
 			effort: clampReasoningEffort(model.id, effort),
-			summary: ((options as { reasoningSummary?: string } | undefined)?.reasoningSummary ?? "auto") as string,
+			summary: ((options as { reasoningSummary?: string | undefined } | undefined)?.reasoningSummary ?? "auto") as string,
 		};
 	}
 
@@ -724,13 +725,13 @@ async function getWebSocketConstructor(): Promise<WebSocketConstructorLike | nul
 	if (_cachedWebSocket) return _cachedWebSocket;
 	if (
 		typeof process !== "undefined" &&
-		process.versions?.bun &&
-		(process.env["HTTP_PROXY"] || process.env["HTTPS_PROXY"] || process.env["http_proxy"] || process.env["https_proxy"])
+		process.versions["bun"]! &&
+		(process.env["HTTP_PROXY"] || process.env["HTTPS_PROXY"]! || process.env["http_proxy"]! || process.env["https_proxy"]!)
 	) {
 		const module = await dynamicImport("proxy-from-env");
 		const getProxyForUrl = (module as { getProxyForUrl: (url: string | object | URL) => string }).getProxyForUrl;
 		_cachedWebSocket = class extends WebSocket {
-			constructor(url: string, options?: { headers?: Record<string, string> } | string | string[]) {
+			constructor(url: string, options?: { headers?: Record<string, string> | undefined } | string | string[]) {
 				const proxy = getProxyForUrl(url.replace(/^wss:/, "https:").replace(/^ws:/, "http:"));
 				const baseOptions = Array.isArray(options) || typeof options === "string" ? { protocols: options } : { ...options };
 				super(url, { ...baseOptions, ...(proxy ? { proxy } : {}) } as never);
@@ -738,7 +739,7 @@ async function getWebSocketConstructor(): Promise<WebSocketConstructorLike | nul
 		};
 		return _cachedWebSocket;
 	}
-	const ctor = (globalThis as typeof globalThis & { WebSocket?: WebSocketConstructorLike }).WebSocket;
+	const ctor = (globalThis as typeof globalThis & { WebSocket?: WebSocketConstructorLike | undefined }).WebSocket;
 	return typeof ctor === "function" ? ctor : null;
 }
 
@@ -795,7 +796,7 @@ function scheduleSessionWebSocketExpiry(cacheKey: string, entry: SessionWebSocke
 
 function extractWebSocketError(event: unknown): Error {
 	if (event && typeof event === "object" && "message" in event) {
-		const message = (event as { message?: unknown }).message;
+		const message = (event as { message?: unknown | undefined }).message;
 		if (typeof message === "string" && message.length > 0) {
 			return new Error(message);
 		}
@@ -805,8 +806,8 @@ function extractWebSocketError(event: unknown): Error {
 
 function extractWebSocketCloseError(event: unknown): Error {
 	if (event && typeof event === "object") {
-		const code = "code" in event ? (event as { code?: unknown }).code : undefined;
-		const reason = "reason" in event ? (event as { reason?: unknown }).reason : undefined;
+		const code = "code" in event ? (event as { code?: unknown | undefined }).code : undefined;
+		const reason = "reason" in event ? (event as { reason?: unknown | undefined }).reason : undefined;
 		const codeText = typeof code === "number" ? ` ${code}` : "";
 		let reasonText = typeof reason === "string" && reason.length > 0 ? ` ${reason}` : "";
 		if (!reasonText && code === WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE) {
@@ -1012,7 +1013,7 @@ function requestBodiesMatchExceptInput(a: ResponsesBody, b: ResponsesBody): bool
 	return JSON.stringify(requestBodyForWebSocketContinuationComparison(a)) === JSON.stringify(requestBodyForWebSocketContinuationComparison(b));
 }
 
-function getCachedWebSocketInputDelta(body: ResponsesBody, continuation: CachedWebSocketContinuationState): { delta?: unknown[]; decision: WebSocketContinuationDecision } {
+function getCachedWebSocketInputDelta(body: ResponsesBody, continuation: CachedWebSocketContinuationState): { delta?: unknown[] | undefined; decision: WebSocketContinuationDecision } {
 	if (!requestBodiesMatchExceptInput(body, continuation.lastRequestBody)) {
 		return { decision: "body_mismatch" };
 	}
@@ -1077,7 +1078,7 @@ async function* parseWebSocket(socket: WebSocketLike, signal: AbortSignal | unde
 		messageChain = messageChain
 			.then(async () => {
 				if (!event || typeof event !== "object" || !("data" in event)) return;
-				const text = await decodeWebSocketData((event as { data?: unknown }).data);
+				const text = await decodeWebSocketData((event as { data?: unknown | undefined }).data);
 				if (!text) return;
 				try {
 					const parsed = JSON.parse(text) as StreamEventShape;
@@ -1244,7 +1245,7 @@ function normalizeCodexStatus(status: string | undefined): string | undefined {
 
 function getLatestUserText(context: Context): string | undefined {
 	for (let i = context.messages.length - 1; i >= 0; i--) {
-		const message = context.messages[i];
+		const message = context.messages[i]!;
 		if (message.role !== "user") continue;
 		if (typeof message.content === "string") {
 			const trimmed = message.content.trim();
@@ -1265,9 +1266,9 @@ async function* captureGeneratedImages(
 	events: AsyncIterable<StreamEventShape>,
 	options: {
 		cwd: string;
-		requestPrompt?: string;
+		requestPrompt?: string | undefined;
 		onImageSaved: (image: SavedGeneratedImage, imageData: { data: string; mimeType: string }) => void;
-		onWebSearchCaptured?: (search: SurfacedWebSearch) => void;
+		onWebSearchCaptured?: (search: SurfacedWebSearch) => void | undefined;
 	},
 ): AsyncIterable<StreamEventShape> {
 	let responseId: string | undefined;
@@ -1320,8 +1321,8 @@ async function processCapturedResponsesStream<TApi extends Api>(
 	model: Model<TApi>,
 	options: OpenAICodexStreamOptions | undefined,
 	deps: {
-		onImageSaved?: (savedImage: SavedGeneratedImage, imageData: { data: string; mimeType: string }) => void;
-		onWebSearchCaptured?: (search: SurfacedWebSearch) => void;
+		onImageSaved?: (savedImage: SavedGeneratedImage, imageData: { data: string; mimeType: string }) => void | undefined;
+		onWebSearchCaptured?: (search: SurfacedWebSearch) => void | undefined;
 	},
 	cwd: string,
 	requestPrompt: string | undefined,
@@ -1334,7 +1335,7 @@ async function processCapturedResponsesStream<TApi extends Api>(
 	});
 
 	await processResponsesStream(tappedEvents as AsyncIterable<never>, output, stream, model, {
-		serviceTier: (options as { serviceTier?: ServiceTier } | undefined)?.serviceTier,
+		serviceTier: (options as { serviceTier?: ServiceTier | undefined } | undefined)?.serviceTier,
 		resolveServiceTier: resolveCodexServiceTier,
 		applyServiceTierPricing: (usage, serviceTier) => applyServiceTierPricing(usage, serviceTier, model as Model<Api>),
 	});
@@ -1350,8 +1351,8 @@ async function processWebSocketStream<TApi extends Api>(
 	onStart: () => void,
 	options: SimpleStreamOptions | undefined,
 	deps: {
-		onImageSaved?: (savedImage: SavedGeneratedImage, imageData: { data: string; mimeType: string }) => void;
-		onWebSearchCaptured?: (search: SurfacedWebSearch) => void;
+		onImageSaved?: (savedImage: SavedGeneratedImage, imageData: { data: string; mimeType: string }) => void | undefined;
+		onWebSearchCaptured?: (search: SurfacedWebSearch) => void | undefined;
 	},
 	cwd: string,
 	requestPrompt: string | undefined,
@@ -1365,7 +1366,7 @@ async function processWebSocketStream<TApi extends Api>(
 		let keepConnection = true;
 		let released = false;
 		let eventCount = 0;
-		const transport = (options as { transport?: string } | undefined)?.transport ?? "auto";
+		const transport = (options as { transport?: string | undefined } | undefined)?.transport ?? "auto";
 		const useCachedContext = transport === "websocket-cached" || transport === "auto";
 		// ChatGPT Codex Responses rejects `store: true` ("Store must be set to false").
 		// WebSocket continuation still works via connection-scoped previous_response_id state.
@@ -1375,7 +1376,7 @@ async function processWebSocketStream<TApi extends Api>(
 			: { body: fullBody, decision: useCachedContext ? "no_session_cache_entry" : "disabled" } satisfies CachedWebSocketRequestBodyResult;
 		const requestBody = cachedRequest.body;
 
-		const releaseOnce = (releaseOptions?: { keep?: boolean }) => {
+		const releaseOnce = (releaseOptions?: { keep?: boolean | undefined }) => {
 			if (released) return;
 			released = true;
 			release(releaseOptions);
@@ -1408,7 +1409,7 @@ async function processWebSocketStream<TApi extends Api>(
 			} else if (useCachedContext && entry && output.responseId) {
 				const responseItems = convertResponsesMessages(model, { messages: [output] }, CODEX_TOOL_CALL_PROVIDERS, {
 					includeSystemPrompt: false,
-				}).filter((item) => typeof item === "object" && item !== null && (item as { type?: unknown }).type !== "function_call_output");
+				}).filter((item) => typeof item === "object" && item !== null && (item as { type?: unknown | undefined }).type !== "function_call_output");
 				entry.continuation = {
 					lastRequestBody: fullBody,
 					lastResponseId: output.responseId,
@@ -1441,33 +1442,33 @@ function extractWebSearch(item: StreamEventShape["item"]): SurfacedWebSearch | u
 	const callId = typeof item.id === "string" ? item.id : undefined;
 	if (!callId) return undefined;
 
-	const action = typeof item.action === "object" && item.action !== null ? (item.action as Record<string, unknown>) : undefined;
-	const query = typeof action?.query === "string" ? action.query : undefined;
-	const queries = Array.isArray(action?.queries) ? action.queries.filter((value): value is string => typeof value === "string") : [];
-	const sourceUrls = Array.isArray(action?.sources)
-		? action.sources
+	const action = typeof item["action"]! === "object" && item["action"] !== null ? (item["action"]! as Record<string, unknown>) : undefined;
+	const query = typeof action?.["query"] === "string" ? action["query"]! : undefined;
+	const queries = Array.isArray(action?.["queries"]) ? action["queries"]!.filter((value): value is string => typeof value === "string") : [];
+	const sourceUrls = Array.isArray(action?.["sources"])
+		? action["sources"]!
 				.map((source) => (typeof source === "object" && source !== null ? (source as Record<string, unknown>) : undefined))
-				.map((source) => (typeof source?.url === "string" ? source.url : undefined))
+				.map((source) => (typeof source?.["url"] === "string" ? source["url"]! : undefined))
 				.filter((url): url is string => typeof url === "string")
 		: [];
 
-	const results = Array.isArray(item.results)
-		? item.results
+	const results = Array.isArray(item["results"]!)
+		? item["results"]!
 				.map((result) => (typeof result === "object" && result !== null ? (result as Record<string, unknown>) : undefined))
 				.filter((result): result is Record<string, unknown> => !!result)
 		: [];
 
-	const titledSources: Array<{ title?: string; url: string }> = [];
+	const titledSources: Array<{ title?: string | undefined; url: string }> = [];
 	for (const result of results) {
-		if (typeof result.url !== "string") continue;
+		if (typeof result["url"]! !== "string") continue;
 		titledSources.push({
-			title: typeof result.title === "string" ? result.title : undefined,
-			url: result.url,
+			title: typeof result["title"]! === "string" ? result["title"]! : undefined,
+			url: result["url"]!,
 		});
 	}
 
 	const seenUrls = new Set<string>();
-	const sources: Array<{ title?: string; url: string }> = [];
+	const sources: Array<{ title?: string | undefined; url: string }> = [];
 	for (const source of titledSources) {
 		if (seenUrls.has(source.url)) continue;
 		seenUrls.add(source.url);
@@ -1521,7 +1522,7 @@ function sendActivityMessages(
 	activities: PendingActivity[],
 ): void {
 	for (let index = 0; index < activities.length; index++) {
-		const activity = activities[index];
+		const activity = activities[index]!;
 		if (activity.kind === "image") {
 			imagePreviewCache.set(activity.savedImage.absolutePath, activity.imageData);
 			sendMessage(
@@ -1537,8 +1538,8 @@ function sendActivityMessages(
 		}
 
 		const searches = [activity.search];
-		while (index + 1 < activities.length && activities[index + 1]?.kind === "web-search") {
-			searches.push((activities[++index] as QueuedWebSearchActivity).search);
+		while (index + 1 < activities.length && (activities[index + 1])!?.kind === "web-search") {
+			searches.push((activities[++index]! as QueuedWebSearchActivity).search);
 		}
 		sendMessage(
 			{
@@ -1636,7 +1637,7 @@ function createInitialAssistantMessage<TApi extends Api>(model: Model<TApi>): As
 function createErrorMessage(message: AssistantMessage, error: unknown, aborted: boolean): AssistantMessage {
 	for (const block of message.content) {
 		if (typeof block === "object" && block !== null && "partialJson" in block) {
-			delete (block as { partialJson?: string }).partialJson;
+			delete (block as { partialJson?: string | undefined }).partialJson;
 		}
 	}
 	message.stopReason = aborted ? "aborted" : "error";
@@ -1656,13 +1657,13 @@ function finalizeUsage<TApi extends Api>(_model: Model<TApi>, output: AssistantM
 	output.usage.cost.total = output.usage.cost.input + output.usage.cost.output + output.usage.cost.cacheRead + output.usage.cost.cacheWrite;
 }
 
-async function parseErrorResponse(response: Response): Promise<{ message: string; friendlyMessage?: string }> {
+async function parseErrorResponse(response: Response): Promise<{ message: string; friendlyMessage?: string | undefined }> {
 	const raw = await response.text();
 	let message = raw || response.statusText || "Request failed";
 	let friendlyMessage: string | undefined;
 
 	try {
-		const parsed = JSON.parse(raw) as { error?: { code?: string; type?: string; plan_type?: string; resets_at?: number; message?: string } };
+		const parsed = JSON.parse(raw) as { error?: { code?: string | undefined; type?: string | undefined; plan_type?: string | undefined; resets_at?: number | undefined; message?: string | undefined } | undefined };
 		const err = parsed?.error;
 		if (err) {
 			const code = err.code || err.type || "";
@@ -1697,11 +1698,11 @@ function createCodexStream<TApi extends Api>(
 	options: CodexProviderStreamOptions | undefined,
 	deps: {
 		getCurrentCwd: () => string;
-		getConfig?: () => Pick<CodexConversionConfig, "forceCachedWebSockets">;
-		getNativeToolRewriteConfig?: () => { webSearch: boolean; imageGeneration: boolean };
-		onImageSaved?: (savedImage: SavedGeneratedImage, imageData: { data: string; mimeType: string }) => void;
-		onWebSearchCaptured?: (search: SurfacedWebSearch) => void;
-		onStreamSettled?: () => void;
+		getConfig?: () => Pick<CodexConversionConfig, "forceCachedWebSockets"> | undefined;
+		getNativeToolRewriteConfig?: () => { webSearch: boolean; imageGeneration: boolean } | undefined;
+		onImageSaved?: (savedImage: SavedGeneratedImage, imageData: { data: string; mimeType: string }) => void | undefined;
+		onWebSearchCaptured?: (search: SurfacedWebSearch) => void | undefined;
+		onStreamSettled?: () => void | undefined;
 	},
 ): AssistantMessageEventStream {
 	const effectiveTransport = getEffectiveCodexTransport(options?.transport, deps.getConfig?.());
@@ -1878,7 +1879,7 @@ function createCodexStream<TApi extends Api>(
 	return stream;
 }
 
-export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig, "forceCachedWebSockets">; getNativeToolRewriteConfig?: () => { webSearch: boolean; imageGeneration: boolean } }): void {
+export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { getCurrentCwd: () => string; getConfig?: () => Pick<CodexConversionConfig, "forceCachedWebSockets"> | undefined; getNativeToolRewriteConfig?: () => { webSearch: boolean; imageGeneration: boolean } | undefined }): void {
 	const activityDispatcher = createActivityMessageDispatcher(pi.sendMessage.bind(pi));
 
 	const clearPendingMessages = () => {
@@ -1891,8 +1892,8 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { g
 			const turnActivities: PendingActivity[] = [];
 			return createCodexStream(model, context, streamOptions, {
 				getCurrentCwd: options.getCurrentCwd,
-				getConfig: options.getConfig,
-				getNativeToolRewriteConfig: options.getNativeToolRewriteConfig,
+				...(options.getConfig ? { getConfig: options.getConfig } : {}),
+				...(options.getNativeToolRewriteConfig ? { getNativeToolRewriteConfig: options.getNativeToolRewriteConfig } : {}),
 				onImageSaved: (savedImage, imageData) => {
 					turnActivities.push({ kind: "image", savedImage, imageData });
 				},
@@ -1946,7 +1947,7 @@ export function registerOpenAICodexCustomProvider(pi: ExtensionAPI, options: { g
 		return box;
 	});
 
-	pi.registerMessageRenderer<{ searches?: SurfacedWebSearch[] }>(WEB_SEARCH_ACTIVITY_MESSAGE_TYPE, (message, options, theme) => {
+	pi.registerMessageRenderer<{ searches?: SurfacedWebSearch[] | undefined }>(WEB_SEARCH_ACTIVITY_MESSAGE_TYPE, (message, options, theme) => {
 		const box = new Box(1, 1, (text) => theme.bg("customMessageBg", text));
 		const searches = message.details?.searches ?? [];
 		box.addChild(new Text(theme.fg("customMessageLabel", theme.bold(buildWebSearchSummaryText(searches))), 0, 0));

@@ -14,12 +14,12 @@ const IMAGE_GENERATION_PARAMETERS = Type.Unsafe<Record<string, never>>({
 });
 
 interface FunctionToolPayload {
-	type?: unknown;
-	name?: unknown;
+	type?: unknown | undefined;
+	name?: unknown | undefined;
 }
 
 interface ResponsesPayload {
-	tools?: unknown[];
+	tools?: unknown[] | undefined;
 	[key: string]: unknown;
 }
 

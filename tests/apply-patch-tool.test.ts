@@ -185,11 +185,11 @@ test("apply_patch renderCall shows partial failure inline after some hunks alrea
 				recoveryInstructions?: { mustReadFiles?: string[]; mustNotReadFiles?: string[] };
 			};
 		};
-		assert.equal(result.content[0]?.type, "text");
-		assert.match(result.content[0]?.text ?? "", /partially failed/i);
-		assert.match(result.content[0]?.text ?? "", /MUST read missing\.txt before retrying\./);
-		assert.match(result.content[0]?.text ?? "", /Earlier file actions in this patch were already applied\./);
-		assert.match(result.content[0]?.text ?? "", /MUST NOT reread other files from this patch unless a specific dependency requires it\./);
+		assert.equal(result.content[0]!?.type, "text");
+		assert.match(result.content[0]!?.text ?? "", /partially failed/i);
+		assert.match(result.content[0]!?.text ?? "", /MUST read missing\.txt before retrying\./);
+		assert.match(result.content[0]!?.text ?? "", /Earlier file actions in this patch were already applied\./);
+		assert.match(result.content[0]!?.text ?? "", /MUST NOT reread other files from this patch unless a specific dependency requires it\./);
 		assert.deepEqual(result.details?.failedFiles, ["missing.txt"]);
 		assert.deepEqual(result.details?.appliedFiles, ["created.txt"]);
 		assert.deepEqual(result.details?.recoveryInstructions?.mustReadFiles, ["missing.txt"]);
@@ -245,7 +245,7 @@ test("apply_patch keeps applying later files after one file fails", async () => 
 			};
 		};
 
-		assert.match(result.content[0]?.text ?? "", /partially failed/i);
+		assert.match(result.content[0]!?.text ?? "", /partially failed/i);
 		assert.deepEqual(result.details?.failedFiles, ["missing.txt"]);
 		assert.deepEqual(result.details?.appliedFiles?.sort(), ["created.txt", "later.txt"]);
 		assert.deepEqual(result.details?.recoveryInstructions?.mustReadFiles, ["missing.txt"]);
@@ -284,7 +284,7 @@ test("apply_patch renderCall marks failed absolute-path entries inline using dis
 		const result = (await execute("call-absolute-partial-failure", { input: patch }, undefined, undefined, { cwd })) as {
 			content: Array<{ type: string; text?: string }>;
 		};
-		assert.match(result.content[0]?.text ?? "", /while patching missing\.txt/);
+		assert.match(result.content[0]!?.text ?? "", /while patching missing\.txt/);
 
 		const collapsed = renderComponentText(
 			renderCall({ input: patch }, theme, { toolCallId: "call-absolute-partial-failure", expanded: false, cwd }),
@@ -414,10 +414,10 @@ test("apply_patch partial move failures report real paths and no prior-action wa
 			};
 		};
 
-		assert.match(result.content[0]?.text ?? "", /while patching source\.txt → moved\/source\.txt/i);
-		assert.match(result.content[0]?.text ?? "", /Failed files: source\.txt, moved\/source\.txt/i);
-		assert.match(result.content[0]?.text ?? "", /MUST read source\.txt, moved\/source\.txt before retrying\./i);
-		assert.doesNotMatch(result.content[0]?.text ?? "", /Earlier file actions in this patch were already applied\./i);
+		assert.match(result.content[0]!?.text ?? "", /while patching source\.txt → moved\/source\.txt/i);
+		assert.match(result.content[0]!?.text ?? "", /Failed files: source\.txt, moved\/source\.txt/i);
+		assert.match(result.content[0]!?.text ?? "", /MUST read source\.txt, moved\/source\.txt before retrying\./i);
+		assert.doesNotMatch(result.content[0]!?.text ?? "", /Earlier file actions in this patch were already applied\./i);
 		assert.deepEqual(result.details?.failedFiles, ["source.txt", "moved/source.txt"]);
 		assert.deepEqual(result.details?.appliedFiles, []);
 		assert.deepEqual(result.details?.recoveryInstructions?.mustReadFiles, ["source.txt", "moved/source.txt"]);

@@ -24,8 +24,8 @@ export type LatestNativeCompactionResolution =
 	| {
 			ok: false;
 			reason: LatestNativeCompactionResolutionFailureReason;
-			latestCompactionIndex?: number;
-			latestCompaction?: CompactionEntry;
+			latestCompactionIndex?: number | undefined;
+			latestCompaction?: CompactionEntry | undefined;
 	  };
 
 function entryMatches(entry: NativeCompactionEntry, match: NativeCompactionEntryMatch): boolean {
@@ -60,7 +60,7 @@ export function isPersistedNativeCompactionEntry(
 
 export function findLatestCompactionEntryIndex(entries: readonly SessionEntry[]): number | undefined {
 	for (let index = entries.length - 1; index >= 0; index--) {
-		if (entries[index]?.type === "compaction") {
+		if (entries[index]!?.type === "compaction") {
 			return index;
 		}
 	}
@@ -70,7 +70,7 @@ export function findLatestCompactionEntryIndex(entries: readonly SessionEntry[])
 
 export function findLatestCompactionEntry(entries: readonly SessionEntry[]): CompactionEntry | undefined {
 	const index = findLatestCompactionEntryIndex(entries);
-	return index === undefined ? undefined : (entries[index] as CompactionEntry);
+	return index === undefined ? undefined : (entries[index]! as CompactionEntry);
 }
 
 export function findLatestNativeCompactionEntryIndex(
@@ -78,7 +78,7 @@ export function findLatestNativeCompactionEntryIndex(
 	match: NativeCompactionEntryMatch = {},
 ): number | undefined {
 	for (let index = entries.length - 1; index >= 0; index--) {
-		const entry = entries[index];
+		const entry = entries[index]!;
 		if (!isPersistedNativeCompactionEntry(entry)) {
 			continue;
 		}
@@ -98,7 +98,7 @@ export function findLatestNativeCompactionEntry(
 	match: NativeCompactionEntryMatch = {},
 ): NativeCompactionEntry | undefined {
 	const index = findLatestNativeCompactionEntryIndex(entries, match);
-	return index === undefined ? undefined : (entries[index] as NativeCompactionEntry);
+	return index === undefined ? undefined : (entries[index]! as NativeCompactionEntry);
 }
 
 export function findLatestNativeCompactionDetails(
@@ -120,7 +120,7 @@ export function resolveLatestNativeCompactionEntry(
 		};
 	}
 
-	const latestCompaction = entries[latestCompactionIndex];
+	const latestCompaction = entries[latestCompactionIndex]!;
 	if (!latestCompaction || latestCompaction.type !== "compaction" || !isPersistedNativeCompactionEntry(latestCompaction)) {
 		return {
 			ok: false,

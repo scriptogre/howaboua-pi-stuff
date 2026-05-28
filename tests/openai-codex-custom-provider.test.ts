@@ -242,8 +242,8 @@ test("activity dispatcher defers display messages until an idle agent_end flush"
 
 	assert.equal(isStreaming, false);
 	assert.equal(sentMessages.length, 1);
-	assert.deepEqual(sentMessages[0]?.options, { triggerTurn: false });
-	assert.equal((sentMessages[0]?.message as { customType?: string }).customType, "codex-web-search-activity");
+	assert.deepEqual(sentMessages[0]!?.options, { triggerTurn: false });
+	assert.equal((sentMessages[0]!?.message as { customType?: string }).customType, "codex-web-search-activity");
 });
 
 test("activity dispatcher flushes queued display messages before shutdown clear", async () => {
@@ -269,8 +269,8 @@ test("activity dispatcher flushes queued display messages before shutdown clear"
 	await waitForTimers();
 
 	assert.equal(sentMessages.length, 1);
-	assert.deepEqual(sentMessages[0]?.options, { triggerTurn: false });
-	assert.equal((sentMessages[0]?.message as { customType?: string }).customType, "codex-web-search-activity");
+	assert.deepEqual(sentMessages[0]!?.options, { triggerTurn: false });
+	assert.equal((sentMessages[0]!?.message as { customType?: string }).customType, "codex-web-search-activity");
 });
 
 test("saveOpenAICodexGeneratedImage writes the decoded image bytes into the workspace-local cache", async () => {

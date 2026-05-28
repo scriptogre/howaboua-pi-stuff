@@ -30,7 +30,7 @@ function cloneCompactedOutputItem(item: Record<string, unknown>): Record<string,
 }
 
 export function shouldKeepCompactedOutputItem(item: unknown): item is Record<string, unknown> {
-	return isRecord(item) && typeof item.type === "string";
+	return isRecord(item) && typeof item["type"]! === "string";
 }
 
 export function sanitizeCompactedWindow(output: readonly unknown[]): Record<string, unknown>[] {
@@ -45,28 +45,28 @@ export function sanitizeCompactedWindow(output: readonly unknown[]): Record<stri
 
 export function extractCompactionSummaryText(compactedWindow: readonly unknown[]): string | undefined {
 	for (const item of compactedWindow) {
-		if (!isRecord(item) || typeof item.type !== "string" || !COMPACTION_ITEM_TYPES.has(item.type)) continue;
-		if (typeof item.encrypted_content === "string" && item.encrypted_content.trim().length > 0) return item.encrypted_content.trim();
+		if (!isRecord(item) || typeof item["type"]! !== "string" || !COMPACTION_ITEM_TYPES.has(item["type"]!)) continue;
+		if (typeof item["encrypted_content"]! === "string" && item["encrypted_content"]!.trim().length > 0) return item["encrypted_content"]!.trim();
 	}
 	return undefined;
 }
 
 export function hasCompactionOutputItem(compactedWindow: readonly unknown[]): boolean {
-	return compactedWindow.some((item) => isRecord(item) && typeof item.type === "string" && COMPACTION_ITEM_TYPES.has(item.type));
+	return compactedWindow.some((item) => isRecord(item) && typeof item["type"]! === "string" && COMPACTION_ITEM_TYPES.has(item["type"]!));
 }
 
 function describeOutputItem(item: unknown): string {
 	if (!isRecord(item)) return typeof item;
-	const type = typeof item.type === "string" ? item.type : "<missing-type>";
-	const role = typeof item.role === "string" ? `/${item.role}` : "";
-	const content = Array.isArray(item.content) ? ` content=${item.content.length}` : "";
+	const type = typeof item["type"]! === "string" ? item["type"]! : "<missing-type>";
+	const role = typeof item["role"]! === "string" ? `/${item["role"]!}` : "";
+	const content = Array.isArray(item["content"]!) ? ` content=${item["content"]!.length}` : "";
 	const keys = Object.keys(item).sort().slice(0, 8).join(",");
 	return `${type}${role}${content} keys=[${keys}]`;
 }
 
 export function summarizeCompactionOutputForDiagnostics(rawOutput: readonly unknown[], sanitizedOutput: readonly unknown[]): string {
-	const rawTypes = rawOutput.map((item) => isRecord(item) && typeof item.type === "string" ? item.type : typeof item);
-	const sanitizedTypes = sanitizedOutput.map((item) => isRecord(item) && typeof item.type === "string" ? item.type : typeof item);
+	const rawTypes = rawOutput.map((item) => isRecord(item) && typeof item["type"]! === "string" ? item["type"]! : typeof item);
+	const sanitizedTypes = sanitizedOutput.map((item) => isRecord(item) && typeof item["type"]! === "string" ? item["type"]! : typeof item);
 	const rawCounts = countValues(rawTypes);
 	const sanitizedCounts = countValues(sanitizedTypes);
 	const sample = rawOutput.slice(0, 8).map((item, index) => `${index}: ${describeOutputItem(item)}`).join("; ");

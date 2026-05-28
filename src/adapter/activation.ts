@@ -79,7 +79,7 @@ function disableAdapter(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterS
 	}
 	if (state.enabled) {
 		state.enabled = false;
-		state.adapterOwnedToolNames = undefined;
+		delete state.adapterOwnedToolNames;
 	}
 	setStatus(ctx, false, state.config);
 }

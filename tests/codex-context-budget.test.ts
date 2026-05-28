@@ -127,7 +127,7 @@ test("refreshes cached raw windows when model metadata changes", () => {
 test("reads project compaction reserve over global reserve", () => {
 	const cwd = mkdtempSync(join(tmpdir(), "pi-codex-budget-"));
 	const agentDir = mkdtempSync(join(tmpdir(), "pi-codex-agent-"));
-	const oldAgentDir = process.env["PI_CODING_AGENT_DIR"];
+	const oldAgentDir = process.env["PI_CODING_AGENT_DIR"]!;
 	try {
 		process.env["PI_CODING_AGENT_DIR"] = agentDir;
 		writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ compaction: { reserveTokens: 20_000 } }));

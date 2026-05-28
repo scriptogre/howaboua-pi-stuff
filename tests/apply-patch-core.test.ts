@@ -271,9 +271,9 @@ test("executePatch skips later actions that overlap a failed move", async () => 
 
 		assert.ok(error instanceof ExecutePatchError);
 		assert.equal(error.failures.length, 2);
-		assert.equal(error.failures[0]?.action.path, "a.txt");
-		assert.equal(error.failures[1]?.action.path, "b.txt");
-		assert.match(error.failures[1]?.message ?? "", /Skipped because an earlier failed action affected b\.txt/);
+		assert.equal(error.failures[0]!?.action.path, "a.txt");
+		assert.equal(error.failures[1]!?.action.path, "b.txt");
+		assert.match(error.failures[1]!?.message ?? "", /Skipped because an earlier failed action affected b\.txt/);
 		assert.deepEqual(error.result.changedFiles.sort(), ["b.txt", "c.txt"]);
 		assert.deepEqual(error.result.createdFiles.sort(), ["b.txt", "c.txt"]);
 		assert.equal(readFileSync(join(cwd, "a.txt"), "utf8"), "from\n");
@@ -325,9 +325,9 @@ test("executePatch blocks overlapping actions even when they use absolute and re
 
 		assert.ok(error instanceof ExecutePatchError);
 		assert.equal(error.failures.length, 2);
-		assert.equal(error.failures[0]?.action.path, sourcePath);
-		assert.equal(error.failures[1]?.action.path, "./source.txt");
-		assert.match(error.failures[1]?.message ?? "", /Skipped because an earlier failed action affected \.\/source\.txt/);
+		assert.equal(error.failures[0]!?.action.path, sourcePath);
+		assert.equal(error.failures[1]!?.action.path, "./source.txt");
+		assert.match(error.failures[1]!?.message ?? "", /Skipped because an earlier failed action affected \.\/source\.txt/);
 		assert.equal(readFileSync(sourcePath, "utf8"), "from\n");
 		assert.equal(readFileSync(movedPath, "utf8"), "to\n");
 		assert.equal(readFileSync(join(cwd, "later.txt"), "utf8"), "later\n");

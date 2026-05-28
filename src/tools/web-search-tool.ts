@@ -16,20 +16,20 @@ const WEB_SEARCH_PARAMETERS = Type.Unsafe<Record<string, never>>({
 });
 
 interface FunctionToolPayload {
-	type?: unknown;
-	name?: unknown;
+	type?: unknown | undefined;
+	name?: unknown | undefined;
 }
 
 interface ResponsesPayload {
-	include?: unknown;
-	tools?: unknown[];
+	include?: unknown | undefined;
+	tools?: unknown[] | undefined;
 	[key: string]: unknown;
 }
 
 interface ResponsesWebSearchTool {
 	type: "web_search";
 	external_web_access: true;
-	search_content_types?: string[];
+	search_content_types?: string[] | undefined;
 }
 
 export function supportsNativeWebSearch(model: ExtensionContext["model"]): boolean {

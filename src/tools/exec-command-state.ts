@@ -5,7 +5,7 @@ export type ExecCommandStatus = "running" | "done";
 export interface ExecCommandRenderInfo {
 	hidden: boolean;
 	status: ExecCommandStatus;
-	actionGroups?: ShellAction[][];
+	actionGroups?: ShellAction[][] | undefined;
 }
 
 interface ExecEntry {
@@ -14,8 +14,8 @@ interface ExecEntry {
 	summary: CommandSummary;
 	status: ExecCommandStatus;
 	hidden: boolean;
-	groupId?: number;
-	invalidate?: () => void;
+	groupId?: number | undefined;
+	invalidate?: () => void | undefined;
 }
 
 interface ExecGroup {

@@ -105,14 +105,14 @@ function coalesceReadGroups(actionGroups: ShellAction[][]): ShellAction[] {
 	const flattened: ShellAction[] = [];
 
 	for (let index = 0; index < actionGroups.length; index += 1) {
-		const actions = actionGroups[index];
+		const actions = actionGroups[index]!;
 		if (actions.every((action) => action.kind === "read")) {
 			const reads: Extract<ShellAction, { kind: "read" }>[] = [];
 			const seenPaths = new Set<string>();
 			let lastRead: Extract<ShellAction, { kind: "read" }> | undefined;
 
 			for (let readIndex = index; readIndex < actionGroups.length; readIndex += 1) {
-				const readActions = actionGroups[readIndex];
+				const readActions = actionGroups[readIndex]!;
 				if (!readActions.every((action) => action.kind === "read")) {
 					break;
 				}

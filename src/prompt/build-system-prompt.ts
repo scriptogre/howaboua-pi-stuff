@@ -8,7 +8,7 @@ export interface StructuredPromptSkill {
 	name: string;
 	description: string;
 	filePath: string;
-	disableModelInvocation?: boolean;
+	disableModelInvocation?: boolean | undefined;
 }
 
 const CODEX_GUIDELINES = [
@@ -52,14 +52,14 @@ export function extractPiPromptSkills(prompt: string): PromptSkill[] {
 		return [];
 	}
 
-	const skillMatches = skillsBlockMatch[1].matchAll(
+	const skillMatches = skillsBlockMatch[1]!.matchAll(
 		/<skill>\n\s*<name>([\s\S]*?)<\/name>\n\s*<description>([\s\S]*?)<\/description>\n\s*<location>([\s\S]*?)<\/location>\n\s*<\/skill>/g,
 	);
 
 	return Array.from(skillMatches, (match) => ({
-		name: decodeXml(match[1].trim()),
-		description: decodeXml(match[2].trim()),
-		filePath: decodeXml(match[3].trim()),
+		name: decodeXml(match[1]!.trim()),
+		description: decodeXml(match[2]!.trim()),
+		filePath: decodeXml(match[3]!.trim()),
 	}));
 }
 
@@ -118,7 +118,7 @@ function injectGuidelines(prompt: string): string {
 		return insertBeforeTrailingContext(prompt, fallbackSection);
 	}
 
-	const [, header, body, suffix] = match;
+	const [, header, body, suffix] = match as RegExpMatchArray & { 1: string; 2: string; 3: string };
 	const existingLines = body
 		.split("\n")
 		.map((line) => line.trim())
@@ -131,9 +131,9 @@ function injectGuidelines(prompt: string): string {
 
 	const normalizedBody = body.trimEnd();
 	const replacement = `${header}${normalizedBody}\n${additions.join("\n")}${suffix}`;
-	return `${prompt.slice(0, match.index)}${replacement}${prompt.slice(match.index + match[0].length)}`;
+	return `${prompt.slice(0, match.index)}${replacement}${prompt.slice(match.index + match[0]!.length)}`;
 }
 
-export function buildCodexSystemPrompt(basePrompt: string, options: { skills?: PromptSkill[]; shell?: string } = {}): string {
+export function buildCodexSystemPrompt(basePrompt: string, options: { skills?: PromptSkill[] | undefined; shell?: string | undefined } = {}): string {
 	return injectShell(injectSkills(injectGuidelines(basePrompt), options.skills ?? []), options.shell);
 }

@@ -99,7 +99,7 @@ test("exec_command emits partial execution updates without consuming final outpu
 });
 
 test("exec session manager coerces fish defaults to bash", async () => {
-	const originalShell = process.env["SHELL"];
+	const originalShell = process.env["SHELL"]!;
 	process.env["SHELL"] = "/usr/bin/fish";
 	const sessions = createFastTestExecSessionManager();
 	try {
@@ -145,8 +145,8 @@ test("exec session manager coerces explicit fish shells to bash", async () => {
 });
 
 test("exec session manager preserves fish-derived PATH and SHELL when forcing bash", async () => {
-	const originalShell = process.env["SHELL"];
-	const originalPath = process.env["PATH"];
+	const originalShell = process.env["SHELL"]!;
+	const originalPath = process.env["PATH"]!;
 	process.env["SHELL"] = "/usr/bin/fish";
 	process.env["PATH"] = "/tmp/pi-codex-fish-path:/usr/bin:/bin";
 	const sessions = createFastTestExecSessionManager();
