@@ -243,18 +243,6 @@ function normalizeImageOutputFormat(value: string | undefined): string {
 	return format === "png" || format === "jpg" || format === "jpeg" || format === "webp" ? format : "png";
 }
 
-function shortHash(str: string): string {
-	let h1 = 0xdeadbeef;
-	let h2 = 0x41c6ce57;
-	for (let i = 0; i < str.length; i++) {
-		const ch = str.charCodeAt(i);
-		h1 = Math.imul(h1 ^ ch, 2654435761);
-		h2 = Math.imul(h2 ^ ch, 1597334677);
-	}
-	h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-	h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-	return (h2 >>> 0).toString(36) + (h1 >>> 0).toString(36);
-}
 
 function normalizePath(value: string): string {
 	if (!value) return ".";
@@ -737,7 +725,7 @@ async function getWebSocketConstructor(): Promise<WebSocketConstructorLike | nul
 	if (
 		typeof process !== "undefined" &&
 		process.versions?.bun &&
-		(process.env.HTTP_PROXY || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.https_proxy)
+		(process.env["HTTP_PROXY"] || process.env["HTTPS_PROXY"] || process.env["http_proxy"] || process.env["https_proxy"])
 	) {
 		const module = await dynamicImport("proxy-from-env");
 		const getProxyForUrl = (module as { getProxyForUrl: (url: string | object | URL) => string }).getProxyForUrl;
@@ -1373,7 +1361,7 @@ async function processWebSocketStream<TApi extends Api>(
 	const websocketConnectTimeoutMs = normalizeTimeoutMs(options?.websocketConnectTimeoutMs, "websocketConnectTimeoutMs");
 
 	for (let attempt = 0; attempt < 2; attempt++) {
-		const { socket, entry, reused, release } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs);
+		const { socket, entry, release } = await acquireWebSocket(url, headers, options?.sessionId, options?.signal, websocketConnectTimeoutMs);
 		let keepConnection = true;
 		let released = false;
 		let eventCount = 0;
@@ -1664,7 +1652,7 @@ export function buildProviderErrorMessage(error: unknown): string {
 	return message;
 }
 
-function finalizeUsage<TApi extends Api>(model: Model<TApi>, output: AssistantMessage): void {
+function finalizeUsage<TApi extends Api>(_model: Model<TApi>, output: AssistantMessage): void {
 	output.usage.cost.total = output.usage.cost.input + output.usage.cost.output + output.usage.cost.cacheRead + output.usage.cost.cacheWrite;
 }
 

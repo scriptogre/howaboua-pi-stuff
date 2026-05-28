@@ -12,13 +12,6 @@ function parserIsDone({ state, prefixes }: { state: ParserState; prefixes?: stri
 	return false;
 }
 
-function parserStartsWith({ state, prefix }: { state: ParserState; prefix: string }): boolean {
-	if (state.index >= state.lines.length) {
-		throw new DiffError(`Index: ${state.index} >= ${state.lines.length}`);
-	}
-	return state.lines[state.index].startsWith(prefix);
-}
-
 function parserReadStr({
 	state,
 	prefix,

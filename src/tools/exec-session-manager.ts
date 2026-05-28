@@ -91,7 +91,7 @@ function resolveWorkdir(baseCwd: string, workdir?: string): string {
 }
 
 function resolveShell(shell?: string): string {
-	return getCodexRuntimeShell(shell || process.env.SHELL);
+	return getCodexRuntimeShell(shell || process.env["SHELL"]);
 }
 
 const BASH_SYNC_ENV_KEYS = [
@@ -119,7 +119,7 @@ function shellEscape(value: string): string {
 }
 
 function shouldSyncBashEnv(requestedShell: string | undefined, effectiveShell: string): boolean {
-	return effectiveShell === CODEX_FALLBACK_SHELL && isFishShell(requestedShell || process.env.SHELL);
+	return effectiveShell === CODEX_FALLBACK_SHELL && isFishShell(requestedShell || process.env["SHELL"]);
 }
 
 function buildSyncedBashCommand(command: string, env: NodeJS.ProcessEnv): string {
@@ -564,7 +564,7 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		const child = pty.spawn(shell, shellArgs, {
 			cwd: workdir,
 			env: execution.env,
-			name: process.env.TERM || "xterm-256color",
+			name: process.env["TERM"] || "xterm-256color",
 			cols: 80,
 			rows: 24,
 		});

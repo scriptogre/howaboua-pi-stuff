@@ -10,7 +10,7 @@ import {
 	type CodexConversionConfig,
 } from "../adapter/config.ts";
 import { CHANGELOG_URL, DISCORD_URL, GITHUB_URL, ISSUE_URL, openExternalUrl } from "./links.ts";
-import { fetchCodexUsage, formatCodexUsage, type CodexUsageSnapshot } from "./usage.ts";
+import { fetchCodexUsage, type CodexUsageSnapshot } from "./usage.ts";
 
 export interface CodexSettingsScreenOptions {
 	initialConfig: CodexConversionConfig;

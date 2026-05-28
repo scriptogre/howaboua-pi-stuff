@@ -7,7 +7,7 @@ function createFastTestExecSessionManager() {
 }
 
 async function finishSession(
-	sessionId: number,
+	_sessionId: number,
 	write: (chars?: string) => Promise<UnifiedExecResult>,
 ): Promise<{ output: string; final: UnifiedExecResult }> {
 	let result = await write("hello\n");
@@ -99,8 +99,8 @@ test("exec_command emits partial execution updates without consuming final outpu
 });
 
 test("exec session manager coerces fish defaults to bash", async () => {
-	const originalShell = process.env.SHELL;
-	process.env.SHELL = "/usr/bin/fish";
+	const originalShell = process.env["SHELL"];
+	process.env["SHELL"] = "/usr/bin/fish";
 	const sessions = createFastTestExecSessionManager();
 	try {
 		const result = await sessions.exec(
@@ -117,9 +117,9 @@ test("exec session manager coerces fish defaults to bash", async () => {
 	} finally {
 		sessions.shutdown();
 		if (originalShell === undefined) {
-			delete process.env.SHELL;
+			delete process.env["SHELL"];
 		} else {
-			process.env.SHELL = originalShell;
+			process.env["SHELL"] = originalShell;
 		}
 	}
 });
@@ -145,10 +145,10 @@ test("exec session manager coerces explicit fish shells to bash", async () => {
 });
 
 test("exec session manager preserves fish-derived PATH and SHELL when forcing bash", async () => {
-	const originalShell = process.env.SHELL;
-	const originalPath = process.env.PATH;
-	process.env.SHELL = "/usr/bin/fish";
-	process.env.PATH = "/tmp/pi-codex-fish-path:/usr/bin:/bin";
+	const originalShell = process.env["SHELL"];
+	const originalPath = process.env["PATH"];
+	process.env["SHELL"] = "/usr/bin/fish";
+	process.env["PATH"] = "/tmp/pi-codex-fish-path:/usr/bin:/bin";
 	const sessions = createFastTestExecSessionManager();
 	try {
 		const result = await sessions.exec(
@@ -164,14 +164,14 @@ test("exec session manager preserves fish-derived PATH and SHELL when forcing ba
 	} finally {
 		sessions.shutdown();
 		if (originalShell === undefined) {
-			delete process.env.SHELL;
+			delete process.env["SHELL"];
 		} else {
-			process.env.SHELL = originalShell;
+			process.env["SHELL"] = originalShell;
 		}
 		if (originalPath === undefined) {
-			delete process.env.PATH;
+			delete process.env["PATH"];
 		} else {
-			process.env.PATH = originalPath;
+			process.env["PATH"] = originalPath;
 		}
 	}
 });

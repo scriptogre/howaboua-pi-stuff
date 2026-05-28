@@ -5,7 +5,7 @@ import {
 	type NativeCompactionDetails,
 	type NativeCompactionEntry,
 	type NativeCompactionIdentity,
-} from "./types";
+} from "./types.js";
 
 export type NativeCompactionEntryMatch = Partial<NativeCompactionIdentity>;
 

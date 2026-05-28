@@ -136,7 +136,7 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			const command = typeof sessionId === "number" ? sessions.getSessionCommand(sessionId) : undefined;
 			return new Text(renderWriteStdinCall(sessionId, input, command, theme), 0, 0);
 		},
-		renderResult(result, { expanded, isPartial }, theme) {
+		renderResult(result, { expanded }, theme) {
 			if (!expanded) return createEmptyResultComponent();
 			const state = getResultState(result);
 			const output = renderTerminalText(state.output);

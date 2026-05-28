@@ -7,14 +7,14 @@ import type {
 	SessionMessageEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
-import type { NativeCompactionEntry } from "./types";
+import type { NativeCompactionEntry } from "./types.js";
 import {
 	compareResponsesInputParity,
 	serializeMessagesToResponsesInput,
 	type ResponsesInputContentItem,
 	type ResponsesInputItem,
 	type ResponsesInputMessageItem,
-} from "./serializer";
+} from "./serializer.js";
 import { isAdapterContextExcludedCustomMessageEntry } from "./context-filter.ts";
 
 export type FreshAuthoritativePreamble = {
@@ -653,10 +653,8 @@ function buildNativeReplaySegmentsInternal<TApi extends Api>(args: {
 	}
 
 	const freshPreambleCount = freshPreamble.leadingInput.length;
-	const trailingPreambleCount = freshPreamble.trailingInput.length;
 	const compactionSummaryCount = serializeMessagesToResponsesInput(args.model, [compactionSummaryMessage]).length;
 	const preCompactionKeptCount = replayMatch.preCompactionKept.input.length;
-	const tailEndIndex = args.payload.input.length - trailingPreambleCount;
 	const actualCompactionSummary = cloneResponsesInputSlice(
 		args.payload.input.slice(freshPreambleCount, freshPreambleCount + compactionSummaryCount),
 	);

@@ -64,14 +64,6 @@ export function createExecCommandTracker(): ExecCommandTracker {
 		entriesByToolCallId.get(toolCallId)?.invalidate?.();
 	}
 
-	function findLatestEntryByCommand(command: string): ExecEntry | undefined {
-		let latest: ExecEntry | undefined;
-		for (const entry of entriesByToolCallId.values()) {
-			if (entry.command !== command) continue;
-			latest = entry;
-		}
-		return latest;
-	}
 
 	function getGroupForEntry(entry: ExecEntry | undefined): ExecGroup | undefined {
 		if (!entry?.groupId) return undefined;

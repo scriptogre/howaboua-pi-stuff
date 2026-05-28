@@ -3,7 +3,6 @@ import type { ResponseCreateParamsStreaming, ResponseInput, ResponseStreamEvent,
 import { parse as partialParse } from "partial-json";
 import type { AssistantMessageEventStream } from "@earendil-works/pi-ai";
 
-type MessageRole = Context["messages"][number]["role"];
 type Message = Context["messages"][number];
 
 interface ImageGenerationCallItem {

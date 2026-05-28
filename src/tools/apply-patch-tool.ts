@@ -348,7 +348,7 @@ export function registerApplyPatchTool(pi: ExtensionAPI): void {
 			};
 		},
 		renderCall: renderApplyPatchCallWithOptionalContext,
-		renderResult(result, { isPartial, expanded }, theme) {
+		renderResult(result, { isPartial }, theme) {
 			if (isPartial) {
 				return new Text(`${theme.fg("dim", "•")} ${theme.bold("Patching")}`, 0, 0);
 			}

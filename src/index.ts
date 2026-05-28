@@ -158,7 +158,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 		return {
 			systemPrompt: buildCodexSystemPrompt(event.systemPrompt, {
 				skills,
-				shell: getCodexRuntimeShell(process.env.SHELL),
+				shell: getCodexRuntimeShell(process.env["SHELL"]),
 			}),
 		};
 	});
