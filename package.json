@@ -39,7 +39,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json",
+    "typecheck": "tsgo -p tsconfig.json",
     "test": "tsx --test tests/**/*.test.ts",
     "check": "bun run typecheck && bun run test",
     "publish:dry-run": "npm publish --dry-run",
