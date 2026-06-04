@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.20
+
+### Changes
+
+- [#30](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/30) [`645baa1`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/645baa16a2661d04964d5c9409830836a3405ead) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Match Codex background terminal polling by allowing empty `write_stdin` waits to use a dedicated 5-minute cap instead of the normal 30-second exec cap.
+
 ## 1.5.19
 
 ### Changes
