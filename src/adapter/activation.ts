@@ -36,10 +36,18 @@ export function shouldUseCodexAdapter(ctx: ExtensionContext, config: CodexConver
 	return config.useOnAllModels || isConfiguredAdapterProvider(ctx, config) || isCodexLikeContext(ctx);
 }
 
-function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+export function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
 	if (!config.useAdapterProviders) return false;
 	const provider = ctx.model?.provider?.trim().toLowerCase();
 	return Boolean(provider && config.adapterProviders.includes(provider));
+}
+
+export function shouldUseProxyNativeTools(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	return isConfiguredAdapterProvider(ctx, config) && config.adapterProviderCodexTools;
+}
+
+export function isEffectiveOpenAICodexContext(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+	return isOpenAICodexContext(ctx) || shouldUseProxyNativeTools(ctx, config);
 }
 
 export function shouldUseApplyPatchOnly(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
@@ -106,25 +114,26 @@ function setApplyPatchOnlyStatus(ctx: ExtensionContext, config: CodexConversionC
 }
 
 function getStatusConfig(ctx: ExtensionContext, config: CodexConversionConfig): Parameters<typeof buildStatusText>[0] {
-	const showOpenAICodexFlags = isOpenAICodexContext(ctx);
+	const showOpenAICodexFlags = isEffectiveOpenAICodexContext(ctx, config);
 	const showResponsesVerbosity = isResponsesContext(ctx);
 	return {
 		useOnAllModels: config.useOnAllModels,
 		useAdapterProviders: config.useAdapterProviders && isConfiguredAdapterProvider(ctx, config),
 		fast: showOpenAICodexFlags && config.fast,
-		webSearch: showOpenAICodexFlags && !config.applyPatchOnly && config.webSearch && supportsNativeWebSearch(ctx.model),
-		imageGeneration: showOpenAICodexFlags && !config.applyPatchOnly && config.imageGeneration && supportsNativeImageGeneration(ctx.model),
+		webSearch: showOpenAICodexFlags && !config.applyPatchOnly && config.webSearch,
+		imageGeneration: showOpenAICodexFlags && !config.applyPatchOnly && config.imageGeneration && (supportsNativeImageGeneration(ctx.model) || shouldUseProxyNativeTools(ctx, config)),
 		compaction: { enabled: Boolean(config.responsesCompaction), model: config.compactionModel, reasoning: config.compactionReasoning },
 		...(showResponsesVerbosity ? { verbosity: config.verbosity } : {}),
 	};
 }
 
 function getAdapterToolNames(ctx: ExtensionContext, config: CodexConversionConfig): string[] {
+	const useProxyNativeTools = shouldUseProxyNativeTools(ctx, config);
 	const toolNames = [...CORE_ADAPTER_TOOL_NAMES];
-	if (config.webSearch && supportsNativeWebSearch(ctx.model)) {
+	if (config.webSearch && (supportsNativeWebSearch(ctx.model) || useProxyNativeTools)) {
 		toolNames.push(WEB_SEARCH_TOOL_NAME);
 	}
-	if (config.imageGeneration && supportsNativeImageGeneration(ctx.model)) {
+	if (config.imageGeneration && (supportsNativeImageGeneration(ctx.model) || useProxyNativeTools)) {
 		toolNames.push(IMAGE_GENERATION_TOOL_NAME);
 	}
 	if (Array.isArray(ctx.model?.input) && ctx.model.input.includes("image")) {

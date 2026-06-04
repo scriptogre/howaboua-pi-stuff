@@ -4,7 +4,7 @@ import { executeNativeCompaction } from "./compact-client.ts";
 import { extractCompactionSummaryText, hasCompactionOutputItem, sanitizeCompactedWindow, summarizeCompactionOutputForDiagnostics } from "./compaction-output.ts";
 import { findLatestNativeCompactionEntry, findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry } from "./details-store.ts";
 import { rewriteResponsesPayloadWithNativeReplay, serializeLiveTailToResponsesInput } from "./payload-rewrite.ts";
-import { isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
+import { DEFAULT_SUPPORTED_PROVIDERS, isResponsesCompatiblePayload, resolveNativeCompactionEnvironment, type ResponsesCompatibleRequestPayload } from "./compaction-runtime.ts";
 import { convertResponsesTools } from "../providers/openai-responses-shared.ts";
 import {
 	serializeCompactionPreparationToRequest,
@@ -14,7 +14,7 @@ import {
 } from "./serializer.ts";
 import { createNativeCompactionDetails, createNativeCompactionShimResult, isNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY, type NativeCompactionEntry } from "./types.ts";
 import { isOpenAICodexContext, isResponsesContext } from "./codex-model.ts";
-import { shouldUseCodexAdapter } from "./activation.ts";
+import { isEffectiveOpenAICodexContext, shouldUseCodexAdapter, shouldUseProxyNativeTools } from "./activation.ts";
 import type { AdapterState } from "./state.ts";
 import { rewriteNativeImageGenerationTool } from "../tools/image-generation-tool.ts";
 import { rewriteNativeWebSearchTool } from "../tools/web-search-tool.ts";
@@ -66,11 +66,12 @@ function buildCompactionTools(pi: ExtensionAPI, ctx: ExtensionContext, state: Ad
 		.map((tool): Tool => ({ name: tool.name, description: tool.description, parameters: tool.parameters }));
 	if (tools.length === 0) return undefined;
 	let payload: { tools: unknown[] } = { tools: convertResponsesTools(tools, { strict: null }) };
-	if (isOpenAICodexContext(ctx) && state.config.webSearch) {
-		payload = rewriteNativeWebSearchTool(payload, ctx.model) as { tools: unknown[] };
+	const useProxyNativeTools = !isOpenAICodexContext(ctx) && shouldUseProxyNativeTools(ctx, state.config);
+	if (isEffectiveOpenAICodexContext(ctx, state.config) && state.config.webSearch) {
+		payload = rewriteNativeWebSearchTool(payload, ctx.model, { force: useProxyNativeTools }) as { tools: unknown[] };
 	}
-	if (isOpenAICodexContext(ctx) && state.config.imageGeneration) {
-		payload = rewriteNativeImageGenerationTool(payload, ctx.model) as { tools: unknown[] };
+	if (isEffectiveOpenAICodexContext(ctx, state.config) && state.config.imageGeneration) {
+		payload = rewriteNativeImageGenerationTool(payload, ctx.model, { force: useProxyNativeTools }) as { tools: unknown[] };
 	}
 	return payload.tools;
 }
@@ -81,7 +82,7 @@ function buildCompactionReasoning(pi: ExtensionAPI, ctx: ExtensionContext, state
 	if (!model?.reasoning || level === "off") return undefined;
 	const clampedLevel = clampThinkingLevel(model, level as ModelThinkingLevel);
 	const rawEffort = model.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
-	const effort = typeof rawEffort === "string" && isOpenAICodexContext(ctx) ? clampCodexReasoningEffort(compactionModel, rawEffort) : rawEffort;
+	const effort = typeof rawEffort === "string" && isEffectiveOpenAICodexContext(ctx, state.config) ? clampCodexReasoningEffort(compactionModel, rawEffort) : rawEffort;
 	return effort === null ? undefined : { effort, summary: "auto" };
 }
 
@@ -109,7 +110,7 @@ function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, 
 	return {
 		parallel_tool_calls: true,
 		prompt_cache_key: clampOpenAIPromptCacheKey(ctx.sessionManager.getSessionId()),
-		...(isOpenAICodexContext(ctx) && state.config.fast ? { service_tier: "priority" } : {}),
+		...(isEffectiveOpenAICodexContext(ctx, state.config) && state.config.fast ? { service_tier: "priority" } : {}),
 		text: { verbosity: state.config.verbosity },
 		...(tools ? { tools } : {}),
 		...(reasoning ? { reasoning } : {}),
@@ -164,6 +165,10 @@ function isPiCompactionSummarizationPayload(payload: ResponsesCompatibleRequestP
 	});
 }
 
+function getSupportedNativeCompactionProviders(state: AdapterState): string[] {
+	return [...new Set([...DEFAULT_SUPPORTED_PROVIDERS, ...state.config.adapterProviders])];
+}
+
 export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompactEvent, ctx: ExtensionContext, state: AdapterState, pi: ExtensionAPI) {
 	if (!state.config.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config)) {
 		return undefined;
@@ -179,13 +184,13 @@ export async function handleCodexSessionBeforeCompact(event: SessionBeforeCompac
 }
 
 async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactEvent, ctx: ExtensionContext, state: AdapterState, pi: ExtensionAPI) {
-	if (!isOpenAICodexContext(ctx) && !isResponsesContext(ctx)) {
+	if (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx)) {
 		ctx.ui.notify("OpenAI native compaction is enabled, but the current model is not Responses-compatible; Pi compaction was not run.", "error");
 		return { cancel: true };
 	}
 	if (event.signal.aborted) return { cancel: true };
 
-	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true });
+	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) });
 	if (!resolution.ok) {
 		if (resolution.reason === "unsupported-provider" || resolution.reason === "unsupported-api") {
 			return undefined;
@@ -303,8 +308,8 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 }
 
 export async function rewriteCodexCompactedProviderRequest(payload: unknown, ctx: ExtensionContext, state: AdapterState): Promise<unknown | undefined> {
-	if (!state.config.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config) || (!isOpenAICodexContext(ctx) && !isResponsesContext(ctx))) return undefined;
-	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true }, payload);
+	if (!state.config.responsesCompaction || !shouldUseCodexAdapter(ctx, state.config) || (!isEffectiveOpenAICodexContext(ctx, state.config) && !isResponsesContext(ctx))) return undefined;
+	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) }, payload);
 	if (!resolution.ok) return undefined;
 	const runtime = resolution.runtime;
 	const branchEntries = ctx.sessionManager.getBranch();
@@ -333,7 +338,7 @@ export async function injectPendingNativeWindowIntoPiCompactionRequest(payload: 
 	}
 	if (!isPiCompactionSummarizationPayload(payload)) return undefined;
 
-	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true }, payload);
+	const resolution = await resolveNativeCompactionEnvironment(ctx, { enabled: true, supportedProviders: getSupportedNativeCompactionProviders(state) }, payload);
 	if (!resolution.ok) return undefined;
 	const runtime = resolution.runtime;
 	if (pending.provider !== runtime.provider || pending.api !== runtime.api || pending.baseUrl !== runtime.baseUrl) {
