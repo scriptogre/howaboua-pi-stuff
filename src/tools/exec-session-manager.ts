@@ -60,7 +60,7 @@ export type ExecSessionUpdateCallback = (result: UnifiedExecResult) => void;
 
 export interface ExecSessionManager {
 	exec(input: ExecCommandInput, cwd: string, signal?: AbortSignal, onUpdate?: ExecSessionUpdateCallback): Promise<UnifiedExecResult>;
-	write(input: WriteStdinInput, onUpdate?: ExecSessionUpdateCallback): Promise<UnifiedExecResult>;
+	write(input: WriteStdinInput, signal?: AbortSignal, onUpdate?: ExecSessionUpdateCallback): Promise<UnifiedExecResult>;
 	hasSession(sessionId: number): boolean;
 	getSessionCommand(sessionId: number): string | undefined;
 	onSessionExit(listener: (sessionId: number, command: string) => void): () => void;
@@ -72,6 +72,7 @@ export interface ExecSessionManagerOptions {
 	defaultWriteYieldTimeMs?: number | undefined;
 	minNonInteractiveExecYieldTimeMs?: number | undefined;
 	minEmptyWriteYieldTimeMs?: number | undefined;
+	maxEmptyWriteYieldTimeMs?: number | undefined;
 	maxSessionBufferChars?: number | undefined;
 }
 
@@ -82,6 +83,7 @@ const MIN_YIELD_TIME_MS = 250;
 const MIN_NON_INTERACTIVE_EXEC_YIELD_TIME_MS = 5_000;
 const MIN_EMPTY_WRITE_YIELD_TIME_MS = 5_000;
 const MAX_YIELD_TIME_MS = 30_000;
+const DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS = 300_000;
 const MAX_COMMAND_HISTORY = 256;
 const DEFAULT_MAX_SESSION_BUFFER_CHARS = 256 * 1024 * 1024;
 
@@ -170,12 +172,12 @@ function clampWriteYieldTime(
 	fallback: number,
 	isEmptyPoll: boolean,
 	minEmptyWriteYieldTimeMs: number,
+	maxEmptyWriteYieldTimeMs: number,
 ): number {
-	const value = clampYieldTime(yieldTimeMs, fallback);
 	if (!isEmptyPoll) {
-		return value;
+		return clampYieldTime(yieldTimeMs, fallback);
 	}
-	return Math.min(MAX_YIELD_TIME_MS, Math.max(minEmptyWriteYieldTimeMs, value));
+	return Math.min(maxEmptyWriteYieldTimeMs, Math.max(minEmptyWriteYieldTimeMs, yieldTimeMs ?? fallback));
 }
 
 function maxCharsForTokens(maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS): number {
@@ -378,6 +380,10 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		MAX_YIELD_TIME_MS,
 		Math.max(MIN_YIELD_TIME_MS, options.minEmptyWriteYieldTimeMs ?? MIN_EMPTY_WRITE_YIELD_TIME_MS),
 	);
+	const maxEmptyWriteYieldTimeMs = Math.max(
+		minEmptyWriteYieldTimeMs,
+		options.maxEmptyWriteYieldTimeMs ?? DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS,
+	);
 	const maxSessionBufferChars = Math.max(1024, options.maxSessionBufferChars ?? DEFAULT_MAX_SESSION_BUFFER_CHARS);
 
 	function rememberCommand(sessionId: number, command: string): void {
@@ -418,9 +424,13 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 	function waitForExitOrTimeout(
 		session: ExecSession,
 		yieldTimeMs: number,
+		signal?: AbortSignal,
 		onUpdate?: (elapsedMs: number) => void,
 	): Promise<number> {
 		if (session.exitCode !== undefined && session.exitCode !== null) {
+			return Promise.resolve(0);
+		}
+		if (signal?.aborted) {
 			return Promise.resolve(0);
 		}
 
@@ -428,6 +438,14 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 		let updateTimer: ReturnType<typeof setInterval> | undefined;
 		let lastUpdateAt = 0;
 		return new Promise((resolvePromise) => {
+			let abortCleanup: (() => void) | undefined;
+			let done = false;
+			const finish = () => {
+				if (done) return;
+				done = true;
+				cleanup();
+				resolvePromise(Date.now() - startedAt);
+			};
 			const emitUpdate = (force = false) => {
 				const now = Date.now();
 				if (!force && now - lastUpdateAt < 250) return;
@@ -440,19 +458,19 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 					return;
 				}
 				emitUpdate(true);
-				cleanup();
-				resolvePromise(Date.now() - startedAt);
+				finish();
 			};
 			const timeout = setTimeout(() => {
-				cleanup();
-				resolvePromise(Date.now() - startedAt);
+				finish();
 			}, yieldTimeMs);
+			abortCleanup = registerAbortHandler(signal, finish);
 			if (onUpdate) {
 				updateTimer = setInterval(emitUpdate, 250);
 			}
 			const cleanup = () => {
 				clearTimeout(timeout);
 				if (updateTimer) clearInterval(updateTimer);
+				abortCleanup?.();
 				session.listeners.delete(onWake);
 			};
 			session.listeners.add(onWake);
@@ -615,11 +633,15 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			const waitedMs = await waitForExitOrTimeout(
 				session,
 				clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs),
+				undefined,
 				onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 			);
 			return makeResult(session, waitedMs, input.max_output_tokens);
 		},
-		write: async (input, onUpdate) => {
+		write: async (input, signal, onUpdate) => {
+			if (signal?.aborted) {
+				throw new Error("write_stdin aborted");
+			}
 			const session = sessions.get(input.session_id);
 			if (!session) {
 				throw new Error(`Unknown process id ${input.session_id}`);
@@ -643,7 +665,9 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 								defaultWriteYieldTimeMs,
 								!input.chars || input.chars.length === 0,
 								minEmptyWriteYieldTimeMs,
+								maxEmptyWriteYieldTimeMs,
 							),
+							signal,
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
 						)
 					: 0;

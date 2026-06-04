@@ -228,6 +228,7 @@ test("write_stdin partial updates do not replay already consumed output", async 
 				chars: "hello\n",
 				yield_time_ms: 500,
 			},
+			undefined,
 			(update) => updates.push(update),
 		);
 
@@ -309,6 +310,122 @@ test("empty write_stdin polls are clamped to the configured minimum", async () =
 
 		assert.ok(elapsed >= 450, `expected empty poll clamp >= 450ms, got ${elapsed}ms`);
 		assert.equal(resumed.session_id, started.session_id);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
+test("empty write_stdin polls can wait beyond the normal 30s exec cap", async () => {
+	const sessions = createExecSessionManager({
+		minNonInteractiveExecYieldTimeMs: 50,
+		minEmptyWriteYieldTimeMs: 50,
+		maxEmptyWriteYieldTimeMs: 250,
+	});
+	try {
+		const started = await sessions.exec(
+			{
+				cmd: "sleep 2",
+				shell: "/bin/bash",
+				login: false,
+				yield_time_ms: 50,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(typeof started.session_id, "number");
+
+		const start = Date.now();
+		const resumed = await sessions.write({
+			session_id: started.session_id!,
+			yield_time_ms: 1_000,
+		});
+		const elapsed = Date.now() - start;
+
+		assert.ok(elapsed >= 200, `expected empty poll to use dedicated max, got ${elapsed}ms`);
+		assert.ok(elapsed < 800, `expected empty poll to cap before requested 1000ms, got ${elapsed}ms`);
+		assert.equal(resumed.session_id, started.session_id);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
+test("empty write_stdin polls return promptly when aborted", async () => {
+	const sessions = createExecSessionManager({
+		minNonInteractiveExecYieldTimeMs: 50,
+		minEmptyWriteYieldTimeMs: 50,
+		maxEmptyWriteYieldTimeMs: 5_000,
+	});
+	try {
+		const started = await sessions.exec(
+			{
+				cmd: "sleep 5",
+				shell: "/bin/bash",
+				login: false,
+				yield_time_ms: 50,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(typeof started.session_id, "number");
+
+		const controller = new AbortController();
+		setTimeout(() => controller.abort(), 100);
+		const start = Date.now();
+		const resumed = await sessions.write(
+			{
+				session_id: started.session_id!,
+				yield_time_ms: 5_000,
+			},
+			controller.signal,
+		);
+		const elapsed = Date.now() - start;
+
+		assert.ok(elapsed < 1_000, `expected abort to interrupt empty poll, got ${elapsed}ms`);
+		assert.equal(resumed.session_id, started.session_id);
+	} finally {
+		sessions.shutdown();
+	}
+});
+
+test("write_stdin does not write input when already aborted", async () => {
+	const sessions = createFastTestExecSessionManager();
+	try {
+		const started = await sessions.exec(
+			{
+				cmd: "read line && printf ':%s' \"$line\"",
+				shell: "/bin/bash",
+				login: false,
+				tty: true,
+				yield_time_ms: 50,
+			},
+			process.cwd(),
+		);
+
+		assert.equal(typeof started.session_id, "number");
+		const controller = new AbortController();
+		controller.abort();
+
+		await assert.rejects(
+			() =>
+				sessions.write(
+					{
+						session_id: started.session_id!,
+						chars: "cancelled\n",
+						yield_time_ms: 50,
+					},
+					controller.signal,
+				),
+			/write_stdin aborted/,
+		);
+
+		const resumed = await sessions.write({
+			session_id: started.session_id!,
+			chars: "hello\n",
+			yield_time_ms: 500,
+		});
+
+		assert.equal(resumed.output, "hello\n:hello");
+		assert.equal(resumed.exit_code, 0);
 	} finally {
 		sessions.shutdown();
 	}
