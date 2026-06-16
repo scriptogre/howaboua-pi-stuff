@@ -84,12 +84,13 @@ Use `/codex` to change adapter settings.
 - `/codex fast` — toggle priority service tier for the OpenAI Codex provider
 - `/codex compact` — open native compaction settings
 - `/codex usage` — show Codex subscription usage windows for the active OpenAI Codex model
+- `/codex reset` — open the Usage tab, where banked rate-limit resets can be used with Ctrl+R
 - `/codex low`, `/codex medium`, `/codex high` — set Responses API verbosity
 - `/codex ps` — show the background shell widget
 
 Settings are saved globally in `~/.pi/agent/pi-codex-conversion.json`.
 
-The settings UI has **General**, **Tools**, **OpenAI**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened and can be refreshed manually with `r`.
+The settings UI has **General**, **Tools**, **OpenAI**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened, can be refreshed manually with `R`, and shows banked Codex rate-limit resets with their expiry above the usage windows. When resets are available, press `Ctrl+R` in the Usage tab to use one. After a reset attempt, press `R` before using another reset.
 
 **General** controls PATH mode, scope, status UI, background shells, and whether native Responses compaction is enabled. PATH mode switches the adapter to the shell-only surface above.
 
@@ -125,7 +126,6 @@ That matters most for process control, PTYs, patch application, image handling, 
 - PATH mode prepends the package `bin` directory to exec session `PATH` so bundled Codex tools are available in shell commands.
 - `imagegen` waits up to five minutes in a foreground `exec_command` call before falling back to a resumable session.
 - The package includes bundled binaries and vendored Rust source for the PATH tools.
-- For OpenAI Codex subscription models, the extension adjusts Pi's registered model context windows so Pi's fixed reserve-token compaction heuristic trips at roughly Codex's native auto-compact budget: 90% of Pi's resolved model window.
 - If native compaction fails, the extension falls back to Pi's normal compaction flow. When an older native compacted window exists, it is included in that Pi fallback summarization request so OpenAI can still use the prior opaque context server-side.
 
 ## Command rendering examples
@@ -140,6 +140,15 @@ That matters most for process control, PTYs, patch application, image handling, 
 ## Development checkout
 
 The Git checkout is mostly for development and mirrors the maintainer workflow. It uses committed binaries; rebuild local-platform binaries only after changing Rust source.
+
+Published installs include prebuilt native binaries. For best compatibility on older Linux systems, or if a bundled tool fails with a loader error such as `GLIBC_2.39 not found`, use a Git checkout and build the tools on that machine instead of upgrading glibc manually:
+
+```bash
+cd /path/to/howaboua-pi-stuff
+bun install
+cd packages/pi-codex-conversion
+bun run build:changed-path-tools --all
+```
 
 Run the current checkout without installing globally:
 
