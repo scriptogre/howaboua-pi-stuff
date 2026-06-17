@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.2
+
+### Changes
+
+- [#56](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/56) [`cd98303`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/cd983037da3344ce7790af09f873d2b82799ea55) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Fix collapsed exec rendering for errored tool results without structured output details.
+
 ## 2.1.1
 
 ### Changes
