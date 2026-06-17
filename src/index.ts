@@ -10,7 +10,7 @@ import { createExecSessionManager } from "./tools/exec/session-manager.ts";
 import { registerOpenAICodexCustomProvider } from "./providers/openai-codex-custom-provider.ts";
 import { registerImageGenerationTool } from "./tools/imagegen/tool.ts";
 import { buildCodexSystemPrompt, extractPiPromptSkills, resolvePromptSkills } from "./prompt/build-system-prompt.ts";
-import { registerViewImageTool } from "./tools/view-image/tool.ts";
+import { registerViewImageTool, supportsViewImageInputs } from "./tools/view-image/tool.ts";
 import { buildRecentWebSearchInput, registerWebSearchTool } from "./tools/web-run/tool.ts";
 import { registerWriteStdinTool } from "./tools/exec/write-stdin-tool.ts";
 import { createBundledPathToolsEnv } from "./tools/path/binary.ts";
@@ -68,13 +68,14 @@ export default function codexConversion(pi: ExtensionAPI) {
 
 	function registerCoreTools(config = state.config): void {
 		registerApplyPatchTool(pi, { ...promptSnippetOptions(config), showDiffWhenCollapsed: config.mode === "normal" });
-		registerExecCommandTool(pi, tracker, sessions, { ...customRenderingOptions(config), ...promptSnippetOptions(config), showOutputWhenCollapsed: config.mode === "normal" });
-		registerWriteStdinTool(pi, sessions, promptSnippetOptions(config));
-		registerViewImageTool(pi, { ...customRenderingOptions(config), ...promptSnippetOptions(config) });
+		registerExecCommandTool(pi, tracker, sessions, { describeImagesForTextModels: config.tools.viewImageFallback, ...customRenderingOptions(config), ...promptSnippetOptions(config), showOutputWhenCollapsed: config.mode === "normal" });
+		registerWriteStdinTool(pi, sessions, { describeImagesForTextModels: config.tools.viewImageFallback, ...promptSnippetOptions(config) });
+		registerViewImageTool(pi, { describeForTextModels: config.tools.viewImageFallback, ...customRenderingOptions(config), ...promptSnippetOptions(config) });
 	}
 
 	function ensureOptionalNativeToolsRegistered(config = state.config): void {
 		const allowConfiguredProvider = (model: Model<any> | undefined): boolean => {
+			if (config.scope.allProviders) return true;
 			const provider = model?.provider?.trim().toLowerCase();
 			return Boolean(provider && config.scope.additionalProviders.includes(provider));
 		};
@@ -218,7 +219,7 @@ export default function codexConversion(pi: ExtensionAPI) {
 				skills,
 				shell: getDefaultCodexRuntimeShell(),
 				mode: state.config.mode,
-				tools: state.config.mode === "path" ? state.config.tools : undefined,
+				tools: state.config.mode === "path" ? { ...state.config.tools, viewImage: supportsViewImageInputs(ctx.model) || state.config.tools.viewImageFallback } : undefined,
 			}),
 		};
 	});

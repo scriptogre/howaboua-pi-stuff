@@ -7,11 +7,12 @@ import { renderExecCommandCall, renderGroupedExecCommandCall } from "../../ui/to
 import type { ExecCommandTracker } from "./command-state.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
-import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy } from "../path/outputs.ts";
+import { convertPathToolExecResult, getCodexBackedPathToolNames, getPathToolPolicy, imageContentsFromPathToolDetails, viewImageDescriptionFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
 import { extractPathApplyPatchPreviewPlan, getPathApplyPatchRenderState, markPathApplyPatchPreviewExit, renderPathApplyPatchPreviewFromState, setPathApplyPatchPreviewState, type PathApplyPatchRenderSegment } from "../path/apply-patch-preview.ts";
 import { renderPathToolCommandCall } from "../path/render-call.ts";
 import { webRunSessionStatePath } from "../web-run/tool.ts";
+import { resolveImageDescriptionModel } from "../view-image/tool.ts";
 import { codexToolProviderEnv, resolveCodexToolProvider } from "../../adapter/codex-tool-provider.ts";
 export { imageContentFromCodexViewImageOutput, imageContentsFromCodexViewImageOutput } from "../path/outputs.ts";
 
@@ -89,8 +90,8 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
-async function resolveCodexBackedPathToolEnv(command: string, ctx: ExtensionContext): Promise<NodeJS.ProcessEnv | undefined> {
-	const toolNames = getCodexBackedPathToolNames(command);
+async function resolveCodexBackedPathToolEnv(command: string, ctx: ExtensionContext, options: { includeViewImageDescription?: boolean | undefined } = {}): Promise<NodeJS.ProcessEnv | undefined> {
+	const toolNames = getCodexBackedPathToolNames(command, options);
 	if (toolNames.length === 0) return undefined;
 	try {
 		const env = codexToolProviderEnv(await resolveCodexToolProvider(ctx));
@@ -118,6 +119,7 @@ interface ExecCommandToolOptions {
 	customRendering?: boolean | undefined;
 	promptSnippet?: boolean | undefined;
 	showOutputWhenCollapsed?: boolean | undefined;
+	describeImagesForTextModels?: boolean | undefined;
 }
 
 const COLLAPSED_OUTPUT_MAX_VISUAL_LINES = 5;
@@ -235,6 +237,8 @@ const renderExecCommandResultWithOptionalContext: any = (
 
 	const details = isUnifiedExecResult(result.details) ? result.details : undefined;
 	if (!_options.expanded) {
+		const compactImages = result.content.some((item) => item.type === "image") ? result.content : imageContentsFromPathToolDetails(details);
+		if (compactImages.some((item) => item.type === "image")) return renderTextWithImages(theme.fg("dim", viewImageDescriptionFromPathToolDetails(details) ?? ""), compactImages, theme, { paddingX: 4 });
 		const pathApplyPatchState = getPathApplyPatchRenderState(context?.toolCallId);
 		if (pathApplyPatchState && details?.exit_code !== undefined && details.exit_code !== 0) {
 			return renderCollapsedExecOutputPreview(details, theme);
@@ -245,8 +249,8 @@ const renderExecCommandResultWithOptionalContext: any = (
 		return options.showOutputWhenCollapsed && details ? renderCollapsedExecOutputPreview(details, theme) : createEmptyResultComponent();
 	}
 
-	const content = result.content.find((item) => item.type === "text");
-	const output = details?.output ?? (content?.type === "text" ? content.text : "");
+	const textContent = result.content.find((item) => item.type === "text");
+	const output = details?.output ?? (textContent?.type === "text" ? textContent.text : "");
 	let text = theme.fg("dim", output || "(no output)");
 	const pathApplyPatchPreview = renderPathApplyPatchPreviewFromState(context?.toolCallId, true);
 	if (pathApplyPatchPreview && (details?.exit_code === undefined || details.exit_code === 0)) {
@@ -258,7 +262,8 @@ const renderExecCommandResultWithOptionalContext: any = (
 	if (details?.exit_code !== undefined) {
 		text += `\n${theme.fg("muted", `Exit code: ${details.exit_code}`)}`;
 	}
-	return renderTextWithImages(text, result.content, theme, { paddingX: 4 });
+	const renderContent = result.content.some((item) => item.type === "image") ? result.content : [...result.content, ...imageContentsFromPathToolDetails(details)];
+	return renderTextWithImages(text, renderContent, theme, { paddingX: 4 });
 };
 
 export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTracker, sessions: ExecSessionManager, options: ExecCommandToolOptions = {}): void {
@@ -278,20 +283,27 @@ export function registerExecCommandTool(pi: ExtensionAPI, tracker: ExecCommandTr
 				content: [{ type: "text" as const, text: formatUnifiedExecResult(partial, typedParams.cmd) }],
 				details: partial,
 			});
-			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model);
+			const pathToolPolicy = getPathToolPolicy(typedParams.cmd, ctx.model, { describeImages: options.describeImagesForTextModels });
+			if (pathToolPolicy?.unsupportedMessage) throw new Error(pathToolPolicy.unsupportedMessage);
 			if (pathToolPolicy?.parseApplyPatchOutput) {
 				setPathApplyPatchPreviewState(toolCallId, typedParams.cmd, resolveExecCommandWorkdir(ctx.cwd, typedParams.workdir));
 			}
 			const webRunStatePath = pathToolPolicy?.parseWebRunOutput ? webRunSessionStatePath(ctx) : undefined;
-			const codexBackedPathToolEnv = await resolveCodexBackedPathToolEnv(typedParams.cmd, ctx);
+			const describeImagesForTextModel = options.describeImagesForTextModels && !(Array.isArray(ctx.model?.input) && ctx.model.input.includes("image"));
+			const codexBackedPathToolEnv = await resolveCodexBackedPathToolEnv(typedParams.cmd, ctx, { includeViewImageDescription: describeImagesForTextModel });
+			const hasViewImageDescriptionCommand = getCodexBackedPathToolNames(typedParams.cmd, { includeViewImageDescription: true }).includes("view_image");
+			const viewImageDescriptionEnv = describeImagesForTextModel && hasViewImageDescriptionCommand
+				? { PI_CODEX_VIEW_IMAGE_DESCRIBE: "1", PI_CODEX_VIEW_IMAGE_MODEL: resolveImageDescriptionModel(ctx), ...(pathToolPolicy?.describeImageOutput ? { PI_CODEX_VIEW_IMAGE_STRUCTURED: "1" } : {}) }
+				: undefined;
+			const pathToolEnv = webRunStatePath || codexBackedPathToolEnv || viewImageDescriptionEnv ? { ...codexBackedPathToolEnv, ...viewImageDescriptionEnv, ...(webRunStatePath ? { PI_WEB_RUN_STATE_PATH: webRunStatePath } : {}) } : undefined;
 			const execParams = pathToolPolicy
 				? {
 					...typedParams,
-					...(webRunStatePath || codexBackedPathToolEnv ? { env: { ...codexBackedPathToolEnv, ...(webRunStatePath ? { PI_WEB_RUN_STATE_PATH: webRunStatePath } : {}) } } : {}),
+					...(pathToolEnv ? { env: pathToolEnv } : {}),
 					...(pathToolPolicy.disableTruncation ? { max_output_tokens: Number.MAX_SAFE_INTEGER } : {}),
 					...(pathToolPolicy.yieldTimeMs !== undefined ? { yield_time_ms: pathToolPolicy.yieldTimeMs, max_yield_time_ms: pathToolPolicy.yieldTimeMs } : {}),
 				}
-				: codexBackedPathToolEnv ? { ...typedParams, env: codexBackedPathToolEnv } : typedParams;
+				: pathToolEnv ? { ...typedParams, env: pathToolEnv } : typedParams;
 			const result = await sessions.exec(execParams, ctx.cwd, signal, pathToolPolicy?.suppressPartials ? undefined : onUpdate ? (partial) => onUpdate(toToolResult(partial)) : undefined);
 			if (pathToolPolicy?.parseApplyPatchOutput) {
 				markPathApplyPatchPreviewExit(toolCallId, result.exit_code);

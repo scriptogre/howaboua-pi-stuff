@@ -4,7 +4,7 @@ import { Container, Text } from "@earendil-works/pi-tui";
 import { renderWriteStdinCall } from "../../ui/tool-rendering/codex-rendering.ts";
 import type { ExecSessionManager, UnifiedExecResult } from "./session-manager.ts";
 import { formatUnifiedExecResult } from "./format.ts";
-import { convertPathToolExecResult, getPathToolPolicy } from "../path/outputs.ts";
+import { convertPathToolExecResult, getPathToolPolicy, imageContentsFromPathToolDetails, viewImageDescriptionFromPathToolDetails } from "../path/outputs.ts";
 import { renderTextWithImages } from "../path/rendering.ts";
 
 const WRITE_STDIN_PARAMETERS = Type.Object({
@@ -106,7 +106,7 @@ function createEmptyResultComponent(): Container {
 	return new Container();
 }
 
-export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined } = {}): void {
+export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionManager, options: { promptSnippet?: boolean | undefined; describeImagesForTextModels?: boolean | undefined } = {}): void {
 	pi.registerTool({
 		name: "write_stdin",
 		label: "write_stdin",
@@ -116,7 +116,8 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const typed = parseWriteStdinParams(params);
 			const command = sessions.getSessionCommand(typed.session_id) ?? "";
-			const pathToolPolicy = getPathToolPolicy(command, ctx?.model);
+			const pathToolPolicy = getPathToolPolicy(command, ctx?.model, { describeImages: options.describeImagesForTextModels });
+			if (pathToolPolicy?.unsupportedMessage) throw new Error(pathToolPolicy.unsupportedMessage);
 			const writeParams = pathToolPolicy?.disableTruncation ? { ...typed, max_output_tokens: Number.MAX_SAFE_INTEGER } : typed;
 			let result: UnifiedExecResult;
 			try {
@@ -142,9 +143,12 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			const command = typeof sessionId === "number" ? sessions.getSessionCommand(sessionId) : undefined;
 			return new Text(renderWriteStdinCall(sessionId, input, command, theme), 0, 0);
 		},
-		renderResult(result, { expanded }, theme) {
-			if (!expanded) return createEmptyResultComponent();
-			const state = getResultState(result);
+			renderResult(result, { expanded }, theme) {
+				const state = getResultState(result);
+				if (!expanded) {
+					const content = result.content.some((item) => item.type === "image") ? result.content : imageContentsFromPathToolDetails(result.details);
+					return content.some((item) => item.type === "image") ? renderTextWithImages(theme.fg("dim", viewImageDescriptionFromPathToolDetails(result.details) ?? ""), content, theme) : createEmptyResultComponent();
+				}
 			const output = renderTerminalText(state.output);
 			let text = theme.fg("dim", output || "(no output)");
 			if (state.sessionId !== undefined) {
@@ -153,7 +157,8 @@ export function registerWriteStdinTool(pi: ExtensionAPI, sessions: ExecSessionMa
 			if (state.exitCode !== undefined) {
 				text += `\n${theme.fg("muted", `Exit code: ${state.exitCode}`)}`;
 			}
-			return renderTextWithImages(text, result.content, theme);
+			const content = result.content.some((item) => item.type === "image") ? result.content : [...result.content, ...imageContentsFromPathToolDetails(result.details)];
+			return renderTextWithImages(text, content, theme);
 		},
 	});
 }

@@ -17,21 +17,33 @@ export interface PathToolPolicy {
 	disableTruncation: boolean;
 	suppressPartials: boolean;
 	yieldTimeMs?: number | undefined;
+	unsupportedMessage?: string | undefined;
+	describeImageOutput: boolean;
 	parseImageOutput: boolean;
 	parseWebRunOutput: boolean;
 	parseImagegenOutput: boolean;
+	includeImagegenImageContent: boolean;
 	parseApplyPatchOutput: boolean;
 }
 
-export function getPathToolPolicy(command: string, model: Model<any> | undefined): PathToolPolicy | undefined {
-	if (getPathToolNamesFromParts(splitCommandParts(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
+export function getPathToolPolicy(command: string, model: Model<any> | undefined, options: { describeImages?: boolean | undefined } = {}): PathToolPolicy | undefined {
+	const supportsImages = Array.isArray(model?.input) && model.input.includes("image");
+	if (getPathToolNamesFromParts(commandPartsForDetection(command), ["apply_patch", "view_image", "web_run", "imagegen"]).length > 1) return undefined;
+	const isViewImage = isSimplePathToolOutputCommand(command, "view_image");
+	if (isViewImage && !supportsImages && !options.describeImages) {
+		return { disableTruncation: true, suppressPartials: true, unsupportedMessage: "view_image requires an image-capable model", parseApplyPatchOutput: false, describeImageOutput: false, parseImageOutput: false, parseWebRunOutput: false, parseImagegenOutput: false, includeImagegenImageContent: false };
+	}
+	const isWebRun = isSimplePathToolOutputCommand(command, "web_run");
+	const isImagegen = isSimplePathToolOutputCommand(command, "imagegen");
+	const describeImageOutput = isViewImage && !supportsImages && Boolean(options.describeImages);
 	const modelInput = model?.input;
 	const parseApplyPatchOutput = isPathApplyPatchCommand(command);
-	const parseImageOutput = isSimplePathToolOutputCommand(command, "view_image") && (!Array.isArray(modelInput) || modelInput.includes("image"));
-	const parseWebRunOutput = isSimplePathToolOutputCommand(command, "web_run");
-	const parseImagegenOutput = isSimplePathToolOutputCommand(command, "imagegen") && (!Array.isArray(modelInput) || modelInput.includes("image"));
-	if (!parseApplyPatchOutput && !parseImageOutput && !parseWebRunOutput && !parseImagegenOutput) return undefined;
-	return { disableTruncation: true, suppressPartials: true, ...(parseWebRunOutput || parseImagegenOutput ? { yieldTimeMs: 300_000 } : {}), parseApplyPatchOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput };
+	const parseImageOutput = isViewImage && supportsImages;
+	const parseWebRunOutput = isWebRun;
+	const parseImagegenOutput = isImagegen;
+	const includeImagegenImageContent = isImagegen && (!Array.isArray(modelInput) || modelInput.includes("image"));
+	if (!parseApplyPatchOutput && !parseImageOutput && !describeImageOutput && !parseWebRunOutput && !isImagegen) return undefined;
+	return { disableTruncation: true, suppressPartials: true, ...(isWebRun || isImagegen ? { yieldTimeMs: 3_600_000 } : {}), parseApplyPatchOutput, describeImageOutput, parseImageOutput, parseWebRunOutput, parseImagegenOutput, includeImagegenImageContent };
 }
 
 export function convertPathToolExecResult(command: string, result: UnifiedExecResult, policy: PathToolPolicy | undefined): ToolResultLike | undefined {
@@ -49,6 +61,15 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 		}
 		return undefined;
 	}
+	if (policy.describeImageOutput) {
+		const parsed = pathViewImageDescriptionOutputFromJson(result.output);
+		if (parsed) {
+			const image = imageContentFromCodexViewImageJson(JSON.stringify({ image_url: parsed.image_url, detail: parsed.detail ?? "high" }));
+			const details = sanitizeExecResult(result, parsed.description, { viewImageDescription: image ? { image, description: parsed.description } : { description: parsed.description } });
+			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }], details };
+		}
+		return undefined;
+	}
 	if (policy.parseWebRunOutput) {
 		const parsed = pathWebRunOutputFromJson(result.output);
 		if (parsed) {
@@ -60,7 +81,7 @@ export function convertPathToolExecResult(command: string, result: UnifiedExecRe
 	if (policy.parseImagegenOutput) {
 		const parsed = pathImagegenOutputFromJson(result.output);
 		if (parsed) {
-			const imageContents = imageContentsFromPathImagegenOutput(parsed);
+			const imageContents = policy.includeImagegenImageContent ? imageContentsFromPathImagegenOutput(parsed) : [];
 			const details = sanitizeExecResult(result, formatPathImagegenOutput(parsed), { imagegen: parsed });
 			return { content: [{ type: "text", text: formatUnifiedExecResult(details, command) }, ...imageContents], details };
 		}
@@ -136,11 +157,13 @@ function isSimplePathToolOutputCommand(command: string, toolName: "view_image" |
 
 function findPathToolCommandIndex(part: string[], toolName: string): number {
 	let index = 0;
+	while (["if", "then", "else", "elif", "do", "while", "until", "time", "!"].includes(part[index]!)) index += 1;
 	while (index < part.length && isEnvAssignment(part[index]!)) index += 1;
 	if (part[index] === "env") {
 		index += 1;
 		while (index < part.length && isEnvAssignment(part[index]!)) index += 1;
 	}
+	if (part[index] === "command" && part[index + 1] !== "-v") index += 1;
 	return pathToolTokenName(part[index] ?? "") === toolName ? index : -1;
 }
 
@@ -164,15 +187,16 @@ function pathToolTokenName(token: string): string | undefined {
 	return token.replace(/\\/g, "/").split("/").pop();
 }
 
-export function getCodexBackedPathToolNames(command: string): string[] {
+export function getCodexBackedPathToolNames(command: string, options: { includeViewImageDescription?: boolean | undefined } = {}): string[] {
 	return [
 		...(isPathWebRunCommand(command) ? ["web_run"] : []),
 		...(isPathImagegenCommand(command) ? ["imagegen"] : []),
+		...(options.includeViewImageDescription && hasPathToolCommand(command, "view_image") ? ["view_image"] : []),
 	];
 }
 
 function hasPathToolCommand(command: string, toolName: string): boolean {
-	return getPathToolNamesFromParts(splitCommandParts(command), [toolName]).includes(toolName);
+	return getPathToolNamesFromParts(commandPartsForDetection(command), [toolName]).includes(toolName);
 }
 
 function getPathToolNamesFromParts(parts: string[][], toolNames: string[]): string[] {
@@ -188,16 +212,34 @@ function getPathToolNamesFromParts(parts: string[][], toolNames: string[]): stri
 
 function splitCommandParts(command: string): string[][] {
 	try {
-		return splitOnConnectors(shellSplit(command)).filter((part) => part.length > 0);
+		return splitOnConnectors(shellSplit(stripHeredocBodies(command))).filter((part) => part.length > 0);
 	} catch {
 		return [[command]];
 	}
 }
 
+function commandPartsForDetection(command: string): string[][] {
+	return splitCommandParts(command);
+}
+
+function stripHeredocBodies(command: string): string {
+	const lines = command.split(/\r?\n/);
+	const kept: string[] = [];
+	let heredocEnd: string | undefined;
+	for (const line of lines) {
+		if (heredocEnd) {
+			if (line.replace(/^\t+/, "") === heredocEnd) heredocEnd = undefined;
+			continue;
+		}
+		kept.push(line);
+		const match = line.match(/<<-?\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_.-]+))\s*$/);
+		if (match) heredocEnd = match[1] ?? match[2] ?? match[3];
+	}
+	return kept.join("\n");
+}
+
 function partHasPathToolCommand(part: string[], toolName: string): boolean {
-	const command = part.join(" ");
-	const escaped = toolName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	return new RegExp(`(?:^|[;&|()\r\n])\\s*(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;&|()]+\\s+)*(?:env\\s+(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;&|()]+\\s+)*)?(?:[^\\s;&|()]+/)?${escaped}(?:\\s|$)`).test(command);
+	return findPathToolCommandIndex(part, toolName) !== -1;
 }
 
 function isPathToolDiscoveryPart(part: string[]): boolean {
@@ -272,6 +314,23 @@ export interface PathImagegenOutput {
 	size?: string | undefined;
 }
 
+interface PathViewImageDescriptionOutput {
+	description: string;
+	image_url?: string | undefined;
+	detail?: "high" | "original" | undefined;
+}
+
+function pathViewImageDescriptionOutputFromJson(output: string): PathViewImageDescriptionOutput | undefined {
+	let parsed: unknown;
+	try { parsed = JSON.parse(output.trim()); } catch { return undefined; }
+	if (!parsed || typeof parsed !== "object") return undefined;
+	const description = (parsed as Record<string, unknown>)["description"];
+	if (typeof description !== "string" || !description.trim()) return undefined;
+	const imageUrl = (parsed as Record<string, unknown>)["image_url"];
+	const detail = (parsed as Record<string, unknown>)["detail"];
+	return { description: description.trim(), ...(typeof imageUrl === "string" ? { image_url: imageUrl } : {}), ...(detail === "high" || detail === "original" ? { detail } : {}) };
+}
+
 export function pathImagegenOutputFromJson(output: string): PathImagegenOutput | undefined {
 	let parsed: unknown;
 	try { parsed = JSON.parse(output.trim()); } catch { return undefined; }
@@ -292,6 +351,38 @@ export function imageContentsFromPathImagegenOutput(output: PathImagegenOutput):
 			return [];
 		}
 	});
+}
+
+export function imageContentsFromPathToolDetails(details: unknown): PathViewImageContent[] {
+	if (!details || typeof details !== "object") return [];
+	const pathTool = (details as { pathTool?: unknown }).pathTool;
+	if (!pathTool || typeof pathTool !== "object") return [];
+	const viewImageDescription = (pathTool as { viewImageDescription?: unknown }).viewImageDescription;
+	if (viewImageDescription && typeof viewImageDescription === "object") {
+		const image = (viewImageDescription as { image?: unknown }).image;
+		if (isPathViewImageContent(image)) return [image];
+	}
+	const imagegen = (pathTool as { imagegen?: unknown }).imagegen;
+	if (!imagegen || typeof imagegen !== "object") return [];
+	return imageContentsFromPathImagegenOutput(imagegen as PathImagegenOutput);
+}
+
+export function viewImageDescriptionFromPathToolDetails(details: unknown): string | undefined {
+	if (!details || typeof details !== "object") return undefined;
+	const pathTool = (details as { pathTool?: unknown }).pathTool;
+	if (!pathTool || typeof pathTool !== "object") return undefined;
+	const viewImageDescription = (pathTool as { viewImageDescription?: unknown }).viewImageDescription;
+	if (!viewImageDescription || typeof viewImageDescription !== "object") return undefined;
+	const description = (viewImageDescription as { description?: unknown }).description;
+	return typeof description === "string" && description.trim() ? description.trim() : undefined;
+}
+
+function isPathViewImageContent(value: unknown): value is PathViewImageContent {
+	return Boolean(value && typeof value === "object"
+		&& (value as { type?: unknown }).type === "image"
+		&& typeof (value as { data?: unknown }).data === "string"
+		&& typeof (value as { mimeType?: unknown }).mimeType === "string"
+		&& ((value as { detail?: unknown }).detail === "high" || (value as { detail?: unknown }).detail === "original"));
 }
 
 export function formatPathImagegenOutput(output: PathImagegenOutput): string {
