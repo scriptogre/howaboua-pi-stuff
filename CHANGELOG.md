@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.1
+
+### Changes
+
+- [#53](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/53) [`4c2e803`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/4c2e803f3cc9d9fe7daa0e54f4548af536c8b472) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use OpenAI Codex subscription auth for Codex-backed web and image tools on all models, route image generation through the Codex image endpoints, and add optional image descriptions for text-only models.
+
 ## 2.1.0
 
 ### Changes
