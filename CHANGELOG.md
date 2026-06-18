@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.3
+
+### Changes
+
+- [#60](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/60) [`6de2278`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/6de22781a8c449ccf193fcd66773754b08facfe7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Bounds collapsed exec_command previews for large outputs and adds an all-models extras-only mode with per-tool overlays for apply_patch, view_image, web_run, and imagegen.
+
 ## 2.1.2
 
 ### Changes
