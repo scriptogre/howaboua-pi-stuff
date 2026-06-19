@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.4
+
+### Changes
+
+- [#63](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/63) [`80ca67c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/80ca67c5a2131b10d4bbb5a642e04e95fda547da) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use OpenAI Codex subscription auth for Codex-backed web and image tools on all models, route image generation through the Codex image endpoints, add optional image descriptions for text-only models, shrink oversized tool outputs before native Responses compaction, fix PATH apply_patch Ctrl+O expansion, add a compact tools setting for collapsed patch summaries, avoid rereading generated image files during UI rendering, warn when a local checkout is behind npm, and show local-build guidance for incompatible bundled exec_bridge binaries.
+
 ## 2.1.3
 
 ### Changes
