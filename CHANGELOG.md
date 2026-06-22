@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.5
+
+### Changes
+
+- [#65](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/65) [`47351f8`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/47351f85c22e6b9e32ff6929e8cb63f4431473a2) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Keep native Responses compaction scoped to OpenAI Codex and explicitly configured providers when the adapter is enabled for all models.
+
 ## 2.1.4
 
 ### Changes
