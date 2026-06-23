@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.6
+
+### Changes
+
+- [#69](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/69) [`8b8ddb4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b8ddb47812a6033b01f66e5442f282b4dc84d44) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Fixes PATH-mode apply_patch previews with trailing shell commands and keeps PATH web_run/imagegen commands on the long wait path.
+
+- [#69](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/69) [`8b8ddb4`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/8b8ddb47812a6033b01f66e5442f282b4dc84d44) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Updates the Codex provider compatibility pass for Pi 0.80.1.
+
 ## 2.1.5
 
 ### Changes
