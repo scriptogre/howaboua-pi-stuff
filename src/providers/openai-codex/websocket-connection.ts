@@ -1,30 +1,92 @@
 import { DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, WEBSOCKET_MESSAGE_TOO_BIG_CLOSE_CODE } from "./constants.ts";
 import { headersToRecord } from "./headers.ts";
-import type { WebSocketConstructorLike, WebSocketLike } from "./types.ts";
+import type { ProviderEnv, WebSocketConstructorLike, WebSocketLike } from "./types.ts";
 
 const dynamicImport = (specifier: string) => import(specifier);
 
+const PROXY_ENV_KEYS = new Set([
+	"all_proxy",
+	"http_proxy",
+	"https_proxy",
+	"no_proxy",
+	"npm_config_http_proxy",
+	"npm_config_https_proxy",
+	"npm_config_no_proxy",
+	"npm_config_proxy",
+]);
+
+type GetProxyForUrl = (url: string | object | URL) => string;
+
+let proxyFromEnvPromise: Promise<GetProxyForUrl> | undefined;
+async function getProxyFromEnv(): Promise<GetProxyForUrl> {
+	proxyFromEnvPromise ??= dynamicImport("proxy-from-env").then((module) => (module as { getProxyForUrl: GetProxyForUrl }).getProxyForUrl);
+	return proxyFromEnvPromise;
+}
+
 let _cachedWebSocket: WebSocketConstructorLike | null = null;
-async function getWebSocketConstructor(): Promise<WebSocketConstructorLike | null> {
-	if (_cachedWebSocket) return _cachedWebSocket;
-	if (
-		typeof process !== "undefined" &&
-		process.versions["bun"]! &&
-		(process.env["HTTP_PROXY"] || process.env["HTTPS_PROXY"]! || process.env["http_proxy"]! || process.env["https_proxy"]!)
-	) {
-		const module = await dynamicImport("proxy-from-env");
-		const getProxyForUrl = (module as { getProxyForUrl: (url: string | object | URL) => string }).getProxyForUrl;
-		_cachedWebSocket = class extends WebSocket {
+async function getWebSocketConstructor(env?: ProviderEnv): Promise<WebSocketConstructorLike | null> {
+	if (!env && _cachedWebSocket) return _cachedWebSocket;
+	if (typeof process !== "undefined" && process.versions["bun"]!) {
+		const getProxyForUrl = await getProxyFromEnv();
+		const WebSocketWithProxy = class extends WebSocket {
 			constructor(url: string, options?: { headers?: Record<string, string> | undefined } | string | string[]) {
-				const proxy = getProxyForUrl(url.replace(/^wss:/, "https:").replace(/^ws:/, "http:"));
+				const proxy = resolveWebSocketProxyForTargetSync(getProxyForUrl, url, env);
 				const baseOptions = Array.isArray(options) || typeof options === "string" ? { protocols: options } : { ...options };
 				super(url, { ...baseOptions, ...(proxy ? { proxy } : {}) } as never);
 			}
 		};
-		return _cachedWebSocket;
+		if (!env) _cachedWebSocket = WebSocketWithProxy;
+		return WebSocketWithProxy;
 	}
 	const ctor = (globalThis as typeof globalThis & { WebSocket?: WebSocketConstructorLike | undefined }).WebSocket;
 	return typeof ctor === "function" ? ctor : null;
+}
+
+function proxyTargetUrl(url: string): string {
+	return url.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+}
+
+function scopedProxyEnv(env: ProviderEnv | undefined): Map<string, string> {
+	const scoped = new Map<string, string>();
+	for (const [key, value] of Object.entries(env ?? {})) {
+		const normalized = key.toLowerCase();
+		if (PROXY_ENV_KEYS.has(normalized)) scoped.set(normalized, value);
+	}
+	return scoped;
+}
+
+function withScopedProxyEnv<T>(env: ProviderEnv | undefined, run: () => T): T {
+	if (typeof process === "undefined") return run();
+	const scoped = scopedProxyEnv(env);
+	if (scoped.size === 0) return run();
+
+	const previous = new Map<string, string | undefined>();
+	for (const [key, value] of scoped.entries()) {
+		const upper = key.toUpperCase();
+		previous.set(key, process.env[key]);
+		previous.set(upper, process.env[upper]);
+		delete process.env[key];
+		delete process.env[upper];
+		process.env[key] = value;
+	}
+
+	try {
+		return run();
+	} finally {
+		for (const [key, value] of previous.entries()) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+	}
+}
+
+function resolveWebSocketProxyForTargetSync(getProxyForUrl: GetProxyForUrl, url: string, env?: ProviderEnv): string | undefined {
+	const proxy = withScopedProxyEnv(env, () => getProxyForUrl(proxyTargetUrl(url)));
+	return proxy || undefined;
+}
+
+export async function resolveWebSocketProxyForTarget(url: string, env?: ProviderEnv): Promise<string | undefined> {
+	return resolveWebSocketProxyForTargetSync(await getProxyFromEnv(), url, env);
 }
 
 function getWebSocketReadyState(socket: WebSocketLike): number | undefined {
@@ -70,8 +132,8 @@ export function extractWebSocketCloseError(event: unknown): Error {
 	return new Error("WebSocket closed");
 }
 
-export async function connectWebSocket(url: string, headers: Headers, signal: AbortSignal | undefined, connectTimeoutMs = DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS): Promise<WebSocketLike> {
-	const WebSocketCtor = await getWebSocketConstructor();
+export async function connectWebSocket(url: string, headers: Headers, signal: AbortSignal | undefined, connectTimeoutMs = DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS, env?: ProviderEnv): Promise<WebSocketLike> {
+	const WebSocketCtor = await getWebSocketConstructor(env);
 	if (!WebSocketCtor) {
 		throw new Error("WebSocket transport is not available in this runtime");
 	}
