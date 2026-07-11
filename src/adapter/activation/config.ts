@@ -6,13 +6,15 @@ import { migrateCodexConversionConfigIfNeeded } from "./config-migration.ts";
 export type CodexVerbosity = "low" | "medium" | "high";
 export type CodexAdapterMode = "normal" | "path";
 export type AllProvidersMode = "off" | "on" | "extras";
-export type CompactionModel = "gpt-5.5" | "gpt-5.3-codex-spark" | "gpt-5.4-mini";
-export type WebSearchModel = "gpt-5.5" | "gpt-5.4-mini" | "gpt-5.3-codex-spark";
-export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type HelperModel = "gpt-5.6-luna" | "gpt-5.6-terra" | "gpt-5.6-sol" | "gpt-5.5" | "gpt-5.4-mini" | "gpt-5.3-codex-spark";
+export type CompactionModel = HelperModel;
+export type WebSearchModel = HelperModel;
+export type CompactionReasoning = "current" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
-export const COMPACTION_MODELS: readonly CompactionModel[] = ["gpt-5.5", "gpt-5.3-codex-spark", "gpt-5.4-mini"];
-export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = ["gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
-export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh"];
+export const HELPER_MODELS: readonly HelperModel[] = ["gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol", "gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex-spark"];
+export const COMPACTION_MODELS: readonly CompactionModel[] = HELPER_MODELS;
+export const WEB_SEARCH_MODELS: readonly WebSearchModel[] = HELPER_MODELS;
+export const COMPACTION_REASONING_LEVELS: readonly CompactionReasoning[] = ["current", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 export interface CodexConversionConfig {
 	mode: CodexAdapterMode;
@@ -37,6 +39,7 @@ export interface CodexConversionConfig {
 		backgroundShellCloseShortcut: string;
 	};
 	compaction: { responsesCompaction: boolean };
+	beta: { responsesLite: boolean };
 	openai: {
 		fast: boolean;
 		verbosity: CodexVerbosity;
@@ -63,12 +66,13 @@ export const DEFAULT_CODEX_CONVERSION_CONFIG: CodexConversionConfig = {
 		backgroundShellCloseShortcut: "alt+r",
 	},
 	compaction: { responsesCompaction: false },
+	beta: { responsesLite: false },
 	openai: {
 		fast: false,
 		verbosity: "low",
 		forceCachedWebSockets: true,
-		webSearchModel: "gpt-5.4-mini",
-		compactionModel: "gpt-5.4-mini",
+		webSearchModel: "gpt-5.6-luna",
+		compactionModel: "gpt-5.6-luna",
 		compactionReasoning: "current",
 	},
 };
@@ -130,6 +134,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 	const tools = isObject(value["tools"]) ? value["tools"] : {};
 	const ui = isObject(value["ui"]) ? value["ui"] : {};
 	const compaction = isObject(value["compaction"]) ? value["compaction"] : {};
+	const beta = isObject(value["beta"]) ? value["beta"] : {};
 	const openai = isObject(value["openai"]) ? value["openai"] : {};
 	return {
 		mode: normalizeCodexAdapterMode(value["mode"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.mode,
@@ -157,6 +162,7 @@ export function normalizeCodexConversionConfig(value: unknown): CodexConversionC
 			backgroundShellCloseShortcut: stringValue(ui["backgroundShellCloseShortcut"], DEFAULT_CODEX_CONVERSION_CONFIG.ui["backgroundShellCloseShortcut"]),
 		},
 		compaction: { responsesCompaction: bool(compaction["responsesCompaction"], DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"]) },
+		beta: { responsesLite: bool(beta["responsesLite"], DEFAULT_CODEX_CONVERSION_CONFIG.beta["responsesLite"]) },
 		openai: {
 			fast: bool(openai["fast"], DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"]),
 			verbosity: normalizeCodexVerbosity(openai["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],

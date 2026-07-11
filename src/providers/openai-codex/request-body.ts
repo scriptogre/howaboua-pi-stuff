@@ -37,6 +37,7 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 		prompt_cache_key: clampOpenAIPromptCacheKey(options?.sessionId),
 		tool_choice: "auto",
 		parallel_tool_calls: true,
+		...(options?.sessionId ? { client_metadata: { session_id: options.sessionId, thread_id: options.sessionId } } : {}),
 	};
 
 	// The Codex ChatGPT-backed endpoint rejects output-token cap fields with
@@ -60,7 +61,8 @@ export function buildRequestBody<TApi extends Api>(model: Model<TApi>, context: 
 	const clampedReasoning = options?.reasoning ? clampThinkingLevel(model, options.reasoning) : undefined;
 	const reasoningEffort = options?.reasoningEffort ?? (clampedReasoning === "off" ? undefined : clampedReasoning);
 	if (reasoningEffort !== undefined) {
-		const effort = reasoningEffort === "none" ? (model.thinkingLevelMap?.off ?? "none") : (model.thinkingLevelMap?.[reasoningEffort] ?? reasoningEffort);
+		const thinkingLevelMap = model.thinkingLevelMap as Record<string, string | null | undefined> | undefined;
+		const effort = reasoningEffort === "none" ? (thinkingLevelMap?.["off"] ?? "none") : (thinkingLevelMap?.[reasoningEffort] ?? reasoningEffort);
 		if (effort === null) return body;
 		body.reasoning = {
 			effort: clampReasoningEffort(model.id, effort),

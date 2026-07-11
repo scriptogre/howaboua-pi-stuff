@@ -90,7 +90,7 @@ Use `/codex` to change adapter settings.
 
 Settings are saved globally in `~/.pi/agent/pi-codex-conversion.json`.
 
-The settings UI has **General**, **Tools**, **OpenAI**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened, can be refreshed manually with `R`, and shows banked Codex rate-limit resets with their expiry above the usage windows. When resets are available, press `Ctrl+R` in the Usage tab to use one. After a reset attempt, press `R` before using another reset.
+The settings UI has **General**, **Tools**, **OpenAI**, **Beta**, **Usage**, and **About** tabs. **Usage** refreshes automatically when opened, can be refreshed manually with `R`, and shows banked Codex rate-limit resets with their expiry above the usage windows. When resets are available, press `Ctrl+R` in the Usage tab to use one. After a reset attempt, press `R` before using another reset.
 
 **General** controls PATH mode, scope, status UI, background shells, and whether native Responses compaction is enabled. Native compaction applies to OpenAI Codex and explicitly added providers; all-model scope only changes the tool and prompt adapter. PATH mode switches the adapter to the shell-only surface above.
 
@@ -104,7 +104,11 @@ Advanced users with custom Codex-compatible providers can add provider ids in Ge
 }
 ```
 
-**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Web search defaults to `gpt-5.4-mini`.
+**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Cached WebSockets are prewarmed at session startup. Web search and compaction default to `gpt-5.6-luna`.
+
+**Beta** contains opt-in provider experiments. Responses Lite is off by default and applies only to OpenAI Codex GPT-5.6 Luna, Terra, and Sol. It sends instructions and client tools as input items, uses all-turn reasoning context, disables parallel tool calls as required by the backend, and applies the same transport contract to native compaction.
+
+Maintainers: see [`UPSTREAM_SYNC.md`](UPSTREAM_SYNC.md) for the provider parity checklist and intentional exclusions.
 
 The footer shows the active state, for example:
 

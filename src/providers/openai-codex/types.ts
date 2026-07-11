@@ -16,6 +16,7 @@ export interface WebSocketConstructorLike {
 export interface SessionWebSocketCacheEntry {
 	socket: WebSocketLike;
 	busy: boolean;
+	createdAt: number;
 	idleTimer?: ReturnType<typeof setTimeout> | undefined;
 	continuation?: CachedWebSocketContinuationState | undefined;
 }
@@ -51,9 +52,11 @@ export interface CachedWebSocketRequestBodyResult {
 export type ServiceTier = ResponseCreateParamsStreaming["service_tier"];
 export type ProviderEnv = Record<string, string>;
 export type CodexProviderStreamOptions = SimpleStreamOptions & { serviceTier?: ServiceTier | undefined; textVerbosity?: string | undefined; reasoningSummary?: string | undefined };
-export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh";
+export type CodexReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type OpenAICodexStreamOptions = CodexProviderStreamOptions & {
 	reasoningEffort?: CodexReasoningEffort | undefined;
+	responsesLite?: boolean | undefined;
+	onOutputItemDone?: ((item: unknown) => void) | undefined;
 	websocketConnectTimeoutMs?: number | undefined;
 	env?: ProviderEnv | undefined;
 };
@@ -74,9 +77,11 @@ export interface ResponsesBody {
 	service_tier?: string | undefined;
 	tools?: unknown[] | undefined;
 	reasoning?: {
-		effort: string;
-		summary: string;
+		effort?: string | undefined;
+		summary?: string | undefined;
+		context?: "all_turns" | undefined;
 	} | undefined;
+	client_metadata?: Record<string, string> | undefined;
 	[key: string]: unknown;
 }
 
@@ -87,7 +92,8 @@ export interface ResponseEnvelope {
 		input_tokens?: number | undefined;
 		output_tokens?: number | undefined;
 		total_tokens?: number | undefined;
-		input_tokens_details?: { cached_tokens?: number | undefined } | undefined;
+		input_tokens_details?: { cached_tokens?: number | undefined; cache_write_tokens?: number | undefined } | undefined;
+		output_tokens_details?: { reasoning_tokens?: number | undefined } | undefined;
 	} | undefined;
 	service_tier?: string | undefined;
 	error?: { message?: string | undefined } | undefined;
@@ -96,6 +102,7 @@ export interface ResponseEnvelope {
 
 export interface StreamEventShape {
 	type?: string | undefined;
+	headers?: Record<string, unknown> | undefined;
 	response?: ResponseEnvelope | undefined;
 	item?: {
 		id?: string | undefined;

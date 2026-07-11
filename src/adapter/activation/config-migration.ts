@@ -43,6 +43,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 		compaction: {
 			responsesCompaction: typeof value["responsesCompaction"] === "boolean" ? value["responsesCompaction"] : DEFAULT_CODEX_CONVERSION_CONFIG.compaction["responsesCompaction"],
 		},
+		beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta },
 		openai: {
 			fast: typeof value["fast"] === "boolean" ? value["fast"] : DEFAULT_CODEX_CONVERSION_CONFIG.openai["fast"],
 			verbosity: normalizeCodexVerbosity(value["verbosity"]) ?? DEFAULT_CODEX_CONVERSION_CONFIG.openai["verbosity"],

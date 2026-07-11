@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
-import { injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
+import { buildCompactionReasoning, injectPendingNativeWindowIntoPiCompactionRequest } from "../src/adapter/compaction/compaction.ts";
 import type { AdapterState } from "../src/adapter/activation/state.ts";
+import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
 import type { Model } from "@earendil-works/pi-ai";
 import { serializeMessagesToCompactRequest, type NativeCompactionRequestBody } from "../src/adapter/compaction/serializer.ts";
 import { COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE, shrinkNativeCompactionRequestForEndpoint } from "../src/adapter/compaction/request-shrink.ts";
@@ -26,7 +27,7 @@ test("native compaction requests use Codex-compatible compact payload shape", ()
 	assert.deepEqual(Object.keys(request).sort(), ["input", "instructions", "model"]);
 });
 
-test("native compaction shrinks tool outputs when request exceeds context window", () => {
+test("native compaction shrinks tool outputs when request exceeds context window", async () => {
 	const request: NativeCompactionRequestBody = {
 		model: model.id,
 		instructions: "compact",
@@ -39,7 +40,7 @@ test("native compaction shrinks tool outputs when request exceeds context window
 		],
 	};
 
-	const result = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
+	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 450 });
 
 	assert.equal(result.rewrittenOutputs, 1);
 	assert.equal((result.request.input[2] as { output: string }).output, COMPACTION_TRUNCATED_TOOL_OUTPUT_MESSAGE);
@@ -47,14 +48,14 @@ test("native compaction shrinks tool outputs when request exceeds context window
 	assert.ok(result.estimatedTokensAfter < result.estimatedTokensBefore);
 });
 
-test("native compaction leaves compact requests unchanged under context window", () => {
+test("native compaction leaves compact requests unchanged under context window", async () => {
 	const request: NativeCompactionRequestBody = {
 		model: model.id,
 		instructions: "compact",
 		input: [{ type: "function_call_output", call_id: "call-1", output: "small" }],
 	};
 
-	const result = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 10_000 });
+	const result = await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: 10_000 });
 
 	assert.equal(result.rewrittenOutputs, 0);
 	assert.equal(result.request, request);
@@ -70,6 +71,7 @@ test("injects pending native compacted window into Pi compaction summarization p
 		enabled: true,
 		cwd: process.cwd(),
 		promptSkills: [],
+		codexTurnState: createCodexTurnState(),
 		config: { ...DEFAULT_CODEX_CONVERSION_CONFIG, compaction: { ...DEFAULT_CODEX_CONVERSION_CONFIG.compaction, responsesCompaction: true } },
 		pendingPiCompactionNativeWindow: {
 			window: [{ type: "compaction_summary", encrypted_content: "sealed" }],
@@ -90,4 +92,25 @@ test("injects pending native compacted window into Pi compaction summarization p
 	const rewritten = await injectPendingNativeWindowIntoPiCompactionRequest(payload, ctx, state) as typeof payload;
 	assert.deepEqual(rewritten.input.map((item) => (item as { type?: string; role?: string }).type ?? (item as { role?: string }).role), ["developer", "compaction_summary", "user"]);
 	assert.equal(state.pendingPiCompactionNativeWindow, undefined);
+});
+
+test("explicit compaction reasoning is clamped against the compaction model", () => {
+	const state: AdapterState = {
+		enabled: true,
+		cwd: process.cwd(),
+		promptSkills: [],
+		codexTurnState: createCodexTurnState(),
+		config: {
+			...DEFAULT_CODEX_CONVERSION_CONFIG,
+			openai: { ...DEFAULT_CODEX_CONVERSION_CONFIG.openai, compactionReasoning: "max" },
+		},
+	};
+	const chatModel = { ...model, id: "gpt-5.4", thinkingLevelMap: { high: "high" } } as Model<any>;
+	const compactionModel = { ...model, id: "gpt-5.6-luna", thinkingLevelMap: { max: "max" }, contextWindow: 373_000 } as Model<any>;
+	const ctx = { model: chatModel } as never;
+
+	assert.deepEqual(buildCompactionReasoning({ getThinkingLevel: () => "high" }, ctx, state, compactionModel), {
+		effort: "max",
+		summary: "auto",
+	});
 });

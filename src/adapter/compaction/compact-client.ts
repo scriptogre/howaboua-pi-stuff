@@ -1,5 +1,7 @@
 import type { NativeCompactionRuntime } from "./compaction-runtime.ts";
 import type { NativeCompactionRequestBody } from "./serializer.ts";
+import { RESPONSES_LITE_HEADER } from "../../providers/openai-codex/responses-lite.ts";
+import { CODEX_TURN_STATE_HEADER, type CodexTurnState } from "../../providers/openai-codex/turn-state.ts";
 
 const JSON_CONTENT_TYPE = "application/json";
 
@@ -43,6 +45,9 @@ export type ExecuteNativeCompactionOptions = {
 	runtime: NativeCompactionRuntime;
 	request: NativeCompactionRequestBody;
 	signal?: AbortSignal | undefined;
+	responsesLite?: boolean | undefined;
+	turnState?: CodexTurnState | undefined;
+	sessionId?: string | undefined;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -121,7 +126,7 @@ function extractBearerToken(headers: Headers): string | undefined {
 	return match?.[1]?.trim() || undefined;
 }
 
-function toHeaders(runtime: NativeCompactionRuntime): Record<string, string> {
+function toHeaders(runtime: NativeCompactionRuntime, responsesLite = false): Record<string, string> {
 	const headers = new Headers(runtime.currentModel.headers ?? {});
 	for (const [key, value] of Object.entries(runtime.headers ?? {})) {
 		headers.set(key, value);
@@ -140,6 +145,7 @@ function toHeaders(runtime: NativeCompactionRuntime): Record<string, string> {
 		headers.set("originator", "pi");
 		headers.set("user-agent", buildCodexUserAgent());
 		headers.set("openai-beta", "responses=experimental");
+		if (responsesLite) headers.set(RESPONSES_LITE_HEADER, "true");
 	}
 
 	return Object.fromEntries(headers.entries());
@@ -149,7 +155,13 @@ export async function executeNativeCompaction(
 	options: ExecuteNativeCompactionOptions,
 ): Promise<NativeCompactionClientResult> {
 	const { runtime, request, signal } = options;
-	const headers = toHeaders(runtime);
+	const headers = toHeaders(runtime, options.responsesLite);
+	const currentTurnState = options.turnState?.current();
+	if (currentTurnState && runtime.provider === "openai-codex") headers[CODEX_TURN_STATE_HEADER] = currentTurnState;
+	if (options.sessionId && runtime.provider === "openai-codex") {
+		headers["session-id"] = options.sessionId;
+		headers["thread-id"] = options.sessionId;
+	}
 
 	if (signal?.aborted) {
 		const aborted: NativeCompactionClientFailure = {
@@ -166,6 +178,9 @@ export async function executeNativeCompaction(
 			body: JSON.stringify(request),
 			...(signal ? { signal } : {}),
 		});
+		if (response.ok && runtime.provider === "openai-codex") {
+			options.turnState?.capture(response.headers.get(CODEX_TURN_STATE_HEADER));
+		}
 		const responseText = await response.text();
 
 		if (!response.ok) {

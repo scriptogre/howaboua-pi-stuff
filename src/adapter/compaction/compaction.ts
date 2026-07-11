@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent } from "@earendil-works/pi-coding-agent";
-import { clampThinkingLevel, type ModelThinkingLevel, type Tool } from "@earendil-works/pi-ai";
+import { clampThinkingLevel, type Api, type Model, type ModelThinkingLevel, type Tool } from "@earendil-works/pi-ai";
 import { executeNativeCompaction } from "./compact-client.ts";
 import { extractCompactionSummaryText, hasCompactionOutputItem, sanitizeCompactedWindow, summarizeCompactionOutputForDiagnostics } from "./compaction-output.ts";
 import { findLatestNativeCompactionEntry, findLatestNativeCompactionEntryIndex, resolveLatestNativeCompactionEntry } from "./details-store.ts";
@@ -15,6 +15,7 @@ import {
 	type ResponsesInputItem,
 } from "./serializer.ts";
 import { createNativeCompactionDetails, createNativeCompactionShimResult, isNativeCompactionDetails, NATIVE_COMPACTION_SHIM_SUMMARY, type NativeCompactionEntry } from "../compaction/types.ts";
+import { applyResponsesLiteRequest, prepareResponsesLiteRequestImages, supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
 import { isResponsesContext } from "../prompt/codex-model.ts";
 import { isEffectiveOpenAICodexContext, shouldUseNativeResponsesCompaction } from "../activation/activation.ts";
 import type { AdapterState } from "../activation/state.ts";
@@ -70,13 +71,21 @@ function buildCompactionTools(pi: ExtensionAPI, ctx: ExtensionContext, state: Ad
 	return convertResponsesTools(tools, { strict: null });
 }
 
-function buildCompactionReasoning(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, compactionModel: string): NativeCompactionRequestOptions["reasoning"] {
-	const model = ctx.model;
-	const level = state.config.openai.compactionReasoning === "current" ? pi.getThinkingLevel() : state.config.openai.compactionReasoning;
-	if (!model?.reasoning || level === "off") return undefined;
-	const clampedLevel = clampThinkingLevel(model, level as ModelThinkingLevel);
-	const rawEffort = model.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
-	const effort = typeof rawEffort === "string" && isEffectiveOpenAICodexContext(ctx, state.config) ? clampCodexReasoningEffort(compactionModel, rawEffort) : rawEffort;
+export function buildCompactionReasoning(
+	pi: Pick<ExtensionAPI, "getThinkingLevel">,
+	ctx: ExtensionContext,
+	state: AdapterState,
+	compactionTargetModel: Model<Api>,
+): NativeCompactionRequestOptions["reasoning"] {
+	const useCurrentReasoning = state.config.openai.compactionReasoning === "current";
+	const reasoningModel = useCurrentReasoning ? ctx.model : compactionTargetModel;
+	const level = useCurrentReasoning ? pi.getThinkingLevel() : state.config.openai.compactionReasoning;
+	if (!reasoningModel?.reasoning || level === "off") return undefined;
+	const clampedLevel = clampThinkingLevel(reasoningModel, level as ModelThinkingLevel);
+	const rawEffort = reasoningModel.thinkingLevelMap?.[clampedLevel] ?? clampedLevel;
+	const effort = typeof rawEffort === "string" && isEffectiveOpenAICodexContext(ctx, state.config)
+		? clampCodexReasoningEffort(compactionTargetModel.id, rawEffort)
+		: rawEffort;
 	return effort === null ? undefined : { effort, summary: "auto" };
 }
 
@@ -98,9 +107,9 @@ function clampOpenAIPromptCacheKey(key: string): string {
 	return chars.slice(0, OPENAI_PROMPT_CACHE_KEY_MAX_LENGTH).join("");
 }
 
-function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, compactionModel: string): NativeCompactionRequestOptions {
+function buildCompactionRequestOptions(pi: ExtensionAPI, ctx: ExtensionContext, state: AdapterState, compactionTargetModel: Model<Api>): NativeCompactionRequestOptions {
 	const tools = buildCompactionTools(pi, ctx, state);
-	const reasoning = buildCompactionReasoning(pi, ctx, state, compactionModel);
+	const reasoning = buildCompactionReasoning(pi, ctx, state, compactionTargetModel);
 	return {
 		parallel_tool_calls: true,
 		prompt_cache_key: clampOpenAIPromptCacheKey(ctx.sessionManager.getSessionId()),
@@ -197,8 +206,17 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 
 	const runtime = resolution.runtime;
 	const compactionModel = state.config.openai.compactionModel;
-	const compactionTargetModel = { ...runtime.currentModel, id: compactionModel };
-	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionModel);
+	const catalogModel = ctx.modelRegistry.find(runtime.provider, compactionModel)
+		?? ctx.modelRegistry.find("openai-codex", compactionModel);
+	const compactionTargetModel: Model<Api> = {
+		...runtime.currentModel,
+		...catalogModel,
+		id: compactionModel,
+		provider: runtime.provider,
+		api: runtime.api,
+		baseUrl: runtime.currentModel.baseUrl,
+	};
+	const requestOptions = buildCompactionRequestOptions(pi, ctx, state, compactionTargetModel);
 	const branchEntries = ctx.sessionManager.getBranch();
 	const latestNativeCompaction = resolveLatestNativeCompactionEntry(branchEntries, {
 		provider: runtime.provider,
@@ -263,10 +281,19 @@ async function handleCodexSessionBeforeCompactInner(event: SessionBeforeCompactE
 		ctx.ui.notify("OpenAI native compaction had no serializable conversation items; Pi compaction was not run.", "error");
 		return { cancel: true };
 	}
+	const responsesLite = state.config.beta.responsesLite && runtime.provider === "openai-codex" && supportsResponsesLiteModel(compactionModel);
+	if (responsesLite) request = await prepareResponsesLiteRequestImages(applyResponsesLiteRequest(request));
 
-	request = shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow }).request;
+	request = (await shrinkNativeCompactionRequestForEndpoint(request, { contextWindow: compactionTargetModel.contextWindow })).request;
 
-	const compactResult = await executeNativeCompaction({ runtime, request, signal: event.signal });
+	const compactResult = await executeNativeCompaction({
+		runtime,
+		request,
+		signal: event.signal,
+		responsesLite,
+		turnState: state.codexTurnState,
+		sessionId: ctx.sessionManager.getSessionId(),
+	});
 	if (!compactResult.ok) {
 		if (compactResult.reason !== "aborted") {
 			notifyNativeCompactionFallback(ctx, state, branchEntries, runtime, formatCompactFailureMessage(compactResult));
