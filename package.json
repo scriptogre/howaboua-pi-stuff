@@ -37,6 +37,7 @@
     "bin/web_run.cmd",
     "bin/imagegen.cmd",
     "available-tools.png",
+    "examples/custom-tools",
     "CHANGELOG.md",
     "PATH_TOOLS.md",
     "README.md",
@@ -50,11 +51,14 @@
     "src/tools/**/Cargo.toml",
     "src/tools/Cargo.lock",
     "src/tools/rust/UPSTREAM.*",
+    "code-mode",
+    "scripts/code-mode",
+    "!src/**/AGENTS.md",
     "!src/tools/target/**"
   ],
   "scripts": {
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsgo -p tsconfig.build.json",
-    "typecheck": "tsgo -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "tsx --test tests/**/*.test.ts",
     "check": "bun run typecheck && bun run test",
     "publish:dry-run": "npm publish --dry-run",
@@ -62,12 +66,14 @@
     "release:dev": "npm version prerelease --preid dev && npm publish --tag dev",
     "prepack": "bun run check && bun run build",
     "prepare": "bun run build",
-    "prepublishOnly": "bun run verify:codex-tool-binaries",
+    "prepublishOnly": "bun run verify:codex-tool-binaries && bun run verify:code-mode-host-assets",
     "build:apply-patch": "node scripts/build-apply-patch-binary.mjs",
     "sync:apply-patch-source": "node scripts/sync-apply-patch-source.mjs",
     "verify:codex-tool-binaries": "node scripts/verify-codex-tool-binaries.mjs",
     "build:changed-path-tools": "node scripts/build-changed-path-tool-binaries.mjs",
-    "build:path-tool": "node scripts/build-path-tool-binary.mjs"
+    "build:path-tool": "node scripts/build-path-tool-binary.mjs",
+    "build:code-mode-host": "node scripts/code-mode/build-host.mjs",
+    "verify:code-mode-host-assets": "node scripts/code-mode/verify-host-assets.mjs"
   },
   "publishConfig": {
     "access": "public"
@@ -83,15 +89,15 @@
     "@earendil-works/pi-ai": "0.80.6",
     "@earendil-works/pi-coding-agent": "0.80.6",
     "@earendil-works/pi-tui": "0.80.6",
-    "@typescript/native-preview": "^7.0.0-dev.20260519.1",
     "tsx": "^4.20.5",
     "typebox": "^1.1.24",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "js-tiktoken": "^1.0.21",
     "partial-json": "^0.1.7",
     "proxy-from-env": "1.1.0",
+    "smol-toml": "^1.6.0",
     "tree-sitter-bash": "^0.25.1",
     "web-tree-sitter": "^0.26.7"
   },

@@ -39,6 +39,23 @@ PATH mode narrows the structured tool surface to shell control only:
 - `exec_command` — shell execution with Codex-style `cmd` parameters and resumable sessions
 - `write_stdin` — continue or poll a running exec session
 
+GPT-5.6 Code Mode, available as an opt-in beta for Luna, Terra, and Sol, narrows the provider-visible surface further:
+
+- `exec` — run isolated JavaScript that composes nested tools
+- `wait` — resume or terminate a yielded JavaScript cell
+
+Inside `exec`, Codex extras are nested native calls: `tools.apply_patch(patch)`, `tools.view_image(...)`, `tools.web__run(...)`, and `tools.image_gen__imagegen(...)`. `tools.exec_command(...)` and `tools.write_stdin(...)` use the same shell implementation as normal and PATH modes. Only outer `exec` and `wait` reach the provider, so nested schemas remain local to the V8 host. TOML tools from `~/.pi/agent/codex-conversion-custom-tools/` remain callable through `tools.*`; definitions are deferred by default and can be promoted with `defer_loading = false`. Working opt-in templates ship under `examples/custom-tools/`.
+
+Nested calls retain their structured Pi rendering—shell summaries, parallel outputs, patch diffs, resumable sessions, web/image results, partial updates, and generic TOML-tool output—without exposing extra provider tools.
+
+By default, Code Mode keeps the JavaScript machinery transparent and renders nested operations like direct Pi tools. Turn on **Code Mode details** for the outer `exec`/`wait` cells, expandable JavaScript, and printed runtime output. **Tool renaming** independently controls whether nested operations use polished Codex-style cells or their generic tool names.
+
+### Code Mode custom tools
+
+Put custom tool definitions in `~/.pi/agent/codex-conversion-custom-tools/`, or under `$PI_CODING_AGENT_DIR/codex-conversion-custom-tools/` when configured. Each top-level TOML filename becomes a method on `tools`. Definitions stay deferred unless they set `defer_loading = false`.
+
+The package includes disabled templates under `examples/custom-tools/` for `port_info`, `semantic_grep`, `spawn_agent`, `vent`, and `workflows_create`. To enable one, copy its TOML and matching companion directory into the custom-tools directory without changing their relative layout. Installing the package does not enable any example.
+
 In PATH mode, Codex-style extras live on the extension-injected internal PATH:
 
 - `apply_patch` — patch edits
@@ -104,9 +121,9 @@ Advanced users with custom Codex-compatible providers can add provider ids in Ge
 }
 ```
 
-**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Cached WebSockets are prewarmed at session startup. Web search and compaction default to `gpt-5.6-luna`.
+**Tools** shows required adapter behavior and optional web/image/apply-patch prompt features. General settings control tool renaming, compact tools, Code Mode details, and the background shell widget. **OpenAI** controls fast mode, verbosity, cached WebSocket upgrade, web search model, and compaction model/reasoning. Cached WebSockets are prewarmed at session startup. Web search and compaction default to `gpt-5.6-luna`.
 
-**Beta** contains opt-in provider experiments. Responses Lite is off by default and applies only to OpenAI Codex GPT-5.6 Luna, Terra, and Sol. It sends instructions and client tools as input items, uses all-turn reasoning context, disables parallel tool calls as required by the backend, and applies the same transport contract to native compaction.
+**Beta** contains GPT-5.6 Code Mode, off by default and limited to OpenAI Codex Luna, Terra, and Sol. It atomically enables Codex's Responses Lite transport and code-mode-only toolkit: instructions and client tools become input items, `exec` and `wait` are the only provider-visible tools, and JavaScript restores parallel composition through nested calls. The same Responses Lite transport applies to native compaction.
 
 Maintainers: see [`UPSTREAM_SYNC.md`](UPSTREAM_SYNC.md) for the provider parity checklist and intentional exclusions.
 
@@ -127,6 +144,7 @@ That matters most for process control, PTYs, patch application, image handling, 
 ## Details worth knowing
 
 - `exec_command` and `write_stdin` use a bundled Rust exec bridge; `tty: true` runs through a PTY for interactive commands.
+- GPT-5.6 Code Mode starts its isolated V8 host lazily; the first `exec` downloads and verifies the pinned host binary when needed.
 - PATH mode prepends the package `bin` directory to exec session `PATH` so bundled Codex tools are available in shell commands.
 - `imagegen` waits up to five minutes in a foreground `exec_command` call before falling back to a resumable session.
 - The package includes bundled binaries and vendored Rust source for the PATH tools.

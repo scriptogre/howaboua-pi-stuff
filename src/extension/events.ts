@@ -11,6 +11,7 @@ import { extractPiPromptSkills, resolvePromptSkills } from "../prompt/build-syst
 import { CODEX_TOOL_CALL_PROVIDERS, convertResponsesMessages } from "../providers/openai-responses/shared.ts";
 import { maybeWarnLocalCheckoutVersion } from "../adapter/local-version-warning.ts";
 import { clearApplyPatchRenderState } from "../tools/apply-patch/tool.ts";
+import type { CodeModeRegistration } from "../tools/code-mode/tools.ts";
 import { clearPathApplyPatchPreviewStates } from "../tools/path/apply-patch-preview.ts";
 import { buildRecentWebSearchInput } from "../tools/web-run/tool.ts";
 import { initializeBashParser } from "../shell/bash.ts";
@@ -35,7 +36,13 @@ function responsesContext(messages: unknown[]): Context {
 	return { messages: messages as Context["messages"] };
 }
 
-export function registerCodexEvents(pi: ExtensionAPI, runtime: CodexExtensionRuntime, tools: CodexToolRegistration, ui: CodexUiController): void {
+export function registerCodexEvents(
+	pi: ExtensionAPI,
+	runtime: CodexExtensionRuntime,
+	tools: CodexToolRegistration,
+	ui: CodexUiController,
+	codeMode: CodeModeRegistration,
+): void {
 	const { state, tracker, sessions } = runtime;
 	sessions.onSessionExit((sessionId) => tracker.recordSessionFinished(sessionId));
 
@@ -92,6 +99,7 @@ export function registerCodexEvents(pi: ExtensionAPI, runtime: CodexExtensionRun
 		ui.clearBackgroundWidget();
 		runtime.backgroundWidget.ctx = undefined;
 		sessions.shutdown();
+		await codeMode.shutdownHost();
 	});
 	pi.on("input", async (event) => {
 		if (event.streamingBehavior === undefined) state.codexTurnState.beginTurn();
