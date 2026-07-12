@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0
+
+### Changes
+
+- [#94](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/94) [`a820d16`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a820d161749acfa010b1212cef40cb51efa5e023) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Add GPT-5.6 Code Mode with the Responses Lite transport, a freeform `exec` and `wait` surface, Codex-compatible nested patch/web/image tools, schema-free PATH tools, deferred custom TOML tools with bundled opt-in templates, and configurable Codex-style or detailed nested-tool rendering.
+
 ## 2.1.7
 
 ### Changes
