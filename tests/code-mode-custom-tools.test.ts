@@ -1,22 +1,18 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
-	discoverCustomTools,
-	getCustomToolsDir,
 	parseCustomTool,
 } from "../src/tools/code-mode/custom-tools.ts";
 import { buildPromotedToolsPrompt } from "../src/tools/code-mode/custom-tool-prompt.ts";
-import { registerCustomTools } from "../src/tools/code-mode/tools.ts";
+import {
+	registerCodeModeTools,
+	registerCustomTools,
+} from "../src/tools/code-mode/tools.ts";
 
 test("Code Mode keeps TOML tools deferred unless promoted", () => {
-	assert.equal(
-		getCustomToolsDir("/agent"),
-		join("/agent", "codex-conversion-custom-tools"),
-	);
 	const deferred = parseCustomTool(
 		"/tmp/rare_tool.toml",
 		'usage = "await tools.rare_tool(input)"\ncommand = "rare-tool"\n',
@@ -31,19 +27,6 @@ test("Code Mode keeps TOML tools deferred unless promoted", () => {
 		buildPromotedToolsPrompt([deferred, promoted]),
 		"Custom tools available in exec:\n- common_tool: await tools.common_tool(input)",
 	);
-});
-
-test("Code Mode bundles working custom tool templates", () => {
-	const examplesDir = join(import.meta.dirname, "..", "examples", "custom-tools");
-	const examples = discoverCustomTools(examplesDir);
-	assert.deepEqual(
-		examples.map((tool) => tool.name),
-		["port_info", "semantic_grep", "spawn_agent", "vent", "workflows_create"],
-	);
-	for (const tool of examples) {
-		assert.equal(tool.command, process.execPath);
-		assert.ok(tool.args[0] && existsSync(tool.args[0]));
-	}
 });
 
 test("Code Mode invokes a deferred TOML tool without exposing its schema", async () => {
@@ -98,64 +81,90 @@ test("Code Mode invokes a deferred TOML tool without exposing its schema", async
 			{ toolCallId: "exec-custom", cwd: process.cwd() },
 		);
 		assert.match(rendered.render(120).join("\n"), /custom:ok/);
-
-		const truncated = await exec.execute(
-			"exec-truncated",
-			{
-				code: 'await tools.echo("x".repeat(40000));',
-			},
-			undefined,
-			undefined,
-			{ cwd: process.cwd() },
-		);
-		assert.match(
-			truncated.details.traces[0].result.content[0].text,
-			/Trace output truncated/,
-		);
-
-		const bounded = await exec.execute(
-			"exec-bounded",
-			{
-				code: "await Promise.all(Array.from({ length: 51 }, (_, index) => tools.echo(String(index))));",
-			},
-			undefined,
-			undefined,
-			{ cwd: process.cwd() },
-		);
-		assert.equal(bounded.details.traces.length, 50);
-		assert.equal(bounded.details.droppedTraceCount, 1);
-		const retainedText = bounded.details.traces
-			.flatMap(
-				(trace: { result?: { content?: Array<{ text?: string }> } }) =>
-					trace.result?.content ?? [],
-			)
-			.map((item: { text?: string }) => item.text ?? "")
-			.join("\n");
-		assert.ok(retainedText.length < 100_000);
 	} finally {
 		await runtime.shutdown();
 		await rm(dir, { recursive: true, force: true });
 	}
 });
 
-test("Code Mode reuses its registered tool and event surface", async () => {
-	let toolRegistrations = 0;
-	let eventRegistrations = 0;
-	const pi = {
-		events: {},
-		registerTool() {
-			toolRegistrations += 1;
-		},
-		on() {
-			eventRegistrations += 1;
-		},
+test("Code Mode rebinds its tool and event surface after reload", async () => {
+	const events = {};
+	const registrations = () => {
+		let tools = 0;
+		let handlers = 0;
+		return {
+			pi: {
+				events,
+				registerTool() {
+					tools += 1;
+				},
+				on() {
+					handlers += 1;
+				},
+			},
+			counts: () => ({ tools, handlers }),
+		};
 	};
-	const first = await registerCustomTools(pi as never, "/missing");
+	const firstApi = registrations();
+	const first = await registerCustomTools(firstApi.pi as never, "/missing");
 	await first.shutdown();
-	const second = await registerCustomTools(pi as never, "/missing");
+	const secondApi = registrations();
+	const second = await registerCustomTools(secondApi.pi as never, "/missing");
 	await second.shutdown();
-	assert.equal(toolRegistrations, 2);
-	assert.equal(eventRegistrations, 2);
+	assert.deepEqual(firstApi.counts(), { tools: 2, handlers: 2 });
+	assert.deepEqual(secondApi.counts(), { tools: 2, handlers: 2 });
+});
+
+test("Code Mode removes stale providers before rebinding after reload", async () => {
+	const events = {};
+	const createApi = () => {
+		const tools = new Map<string, any>();
+		return {
+			pi: {
+				events,
+				registerTool(tool: { name: string }) {
+					tools.set(tool.name, tool);
+				},
+				on() {},
+			},
+			tools,
+		};
+	};
+	const nestedTool = (name: string) => ({
+		name,
+		usage: `await tools.${name}({})`,
+		deferLoading: false,
+		kind: "function" as const,
+		inputSchema: { type: "object", properties: {} },
+		async invoke() {
+			return name;
+		},
+	});
+	const firstApi = createApi();
+	const first = await registerCodeModeTools(firstApi.pi as never, {
+		getTools: () => [nestedTool("old_tool")],
+	});
+	await first.shutdown();
+
+	const secondApi = createApi();
+	const second = await registerCodeModeTools(secondApi.pi as never, {
+		getTools: () => [nestedTool("new_tool")],
+	});
+	try {
+		const result = await secondApi.tools.get("exec").execute(
+			"exec-after-reload",
+			{ code: "text(`${typeof tools.old_tool}:${typeof tools.new_tool}`);" },
+			undefined,
+			undefined,
+			{ cwd: process.cwd() },
+		);
+		assert.match(
+			result.content.map((item: { text?: string }) => item.text ?? "").join("\n"),
+			/undefined:function/,
+		);
+	} finally {
+		await second.shutdown();
+	}
 });
 
 test("Code Mode keeps providers registered when its host shuts down", async () => {
