@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.2.1
+
+### Changes
+
+- [#100](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/100) [`14cfe97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/14cfe97fcde447b9981d2ab755fcf65f1cc71ecf) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Let bundled Code Mode spawn agents inherit the parent Codex extension and active tool surface.
+
+- [#100](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/100) [`14cfe97`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/14cfe97fcde447b9981d2ab755fcf65f1cc71ecf) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Restore GPT-5.6 Code Mode tools after Pi reloads extensions or switches sessions.
+
 ## 2.2.0
 
 ### Changes
