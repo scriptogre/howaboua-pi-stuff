@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.2
+
+### Changes
+
+- [#104](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/104) [`819bf9c`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/819bf9c0a2f72a1d9131c50ebedafe354f67cf3f) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Preserve Codex prompt caches when extensions activate tools dynamically and pass through explicit tool choice on Pi 0.80.7.
+
 ## 2.2.1
 
 ### Changes
