@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { isExplicitlyConfiguredToolProvider } from "../src/extension/tools.ts";
 import { buildRecentWebSearchInput, createWebSearchTool, executeCodexWebSearch } from "../src/tools/web-run/tool.ts";
 
 
@@ -10,7 +12,7 @@ function fakeJwt(accountId: string): string {
 	return ["header", Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId } })).toString("base64url"), "signature"].join(".");
 }
 
-function createContext(options: { token?: string; accountId?: string; baseUrl?: string; model?: string; provider?: string; api?: string; headers?: Record<string, string>; sessionFile?: string; sessionId?: string } = {}) {
+function createContext(options: { token?: string; accountId?: string; baseUrl?: string; model?: string; provider?: string; api?: string; headers?: Record<string, string>; apiKeyWithHeaders?: boolean; sessionFile?: string; sessionId?: string } = {}) {
 	const token = options.token ?? fakeJwt(options.accountId ?? "acct-from-token");
 	return {
 		cwd: process.cwd(),
@@ -28,7 +30,7 @@ function createContext(options: { token?: string; accountId?: string; baseUrl?: 
 			async getApiKeyAndHeaders() {
 				return {
 					ok: true,
-					apiKey: options.headers ? undefined : token,
+					apiKey: options.headers && !options.apiKeyWithHeaders ? undefined : token,
 					headers: options.headers ?? (options.accountId ? { "chatgpt-account-id": options.accountId } : {}),
 				};
 			},
@@ -52,6 +54,15 @@ test("buildRecentWebSearchInput mirrors Codex standalone web search context tail
 		{ type: "message", role: "assistant", content: [{ type: "output_text", text: "previous assistant", annotations: [] }], status: "completed" },
 		{ type: "message", role: "user", content: [{ type: "input_text", text: "current user" }] },
 	]);
+});
+
+test("proxy tool routing stays limited to explicit providers", () => {
+	const config = {
+		...DEFAULT_CODEX_CONVERSION_CONFIG,
+		scope: { allProviders: "on" as const, additionalProviders: ["responses-proxy"] },
+	};
+	assert.equal(isExplicitlyConfiguredToolProvider({ provider: "responses-proxy" } as never, config), true);
+	assert.equal(isExplicitlyConfiguredToolProvider({ provider: "unlisted-proxy" } as never, config), false);
 });
 async function withMockWebRun(script: string, run: (path: string) => Promise<void>): Promise<void> {
 	const dir = await mkdtemp(join(tmpdir(), "pi-web-run-test-"));
@@ -105,7 +116,9 @@ process.stdin.on("end", () => {
 
 test("web_run routes explicitly configured Responses providers through their endpoint", async () => {
 	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
+	const originalAgentIdentity = process.env["PI_CODEX_AGENT_IDENTITY_JWT"];
 	try {
+		process.env["PI_CODEX_AGENT_IDENTITY_JWT"] = "must-not-reach-proxy";
 		await withMockWebRun(`#!/usr/bin/env node
 let input = "";
 process.stdin.on("data", (chunk) => input += chunk);
@@ -113,6 +126,7 @@ process.stdin.on("end", () => console.log(JSON.stringify({
   output_text: "ok",
   observed: {
 	input: JSON.parse(input),
+	agentIdentity: process.env.PI_CODEX_AGENT_IDENTITY_JWT,
     token: process.env.PI_CODEX_ACCESS_TOKEN,
     accountId: process.env.PI_CODEX_ACCOUNT_ID,
     baseUrl: process.env.PI_CODEX_BASE_URL,
@@ -140,12 +154,15 @@ process.stdin.on("end", () => console.log(JSON.stringify({
 					api: "openai-responses",
 					baseUrl: "https://proxy.example/v1/",
 					model: "gpt-5.6",
-					token: "proxy-key",
+					token: "stale-api-key",
+					headers: { Authorization: "Bearer proxy-header-key" },
+					apiKeyWithHeaders: true,
 				}),
 			);
 			assert.equal(result.content[0]?.type === "text" ? result.content[0].text : undefined, "ok");
 			const observed = ((result.details as { webRun: { observed: {
 				input: Record<string, unknown>;
+				agentIdentity?: string;
 				token: string;
 				accountId: string;
 				baseUrl: string;
@@ -154,6 +171,7 @@ process.stdin.on("end", () => console.log(JSON.stringify({
 			} } }).webRun).observed;
 			assert.equal(observed.input["model"], "gpt-5.6");
 			assert.deepEqual(observed.input["search_query"], [{ q: "OpenAI" }]);
+			assert.equal(observed.agentIdentity, undefined);
 			assert.deepEqual({
 				token: observed.token,
 				accountId: observed.accountId,
@@ -161,7 +179,7 @@ process.stdin.on("end", () => console.log(JSON.stringify({
 				responsesUrl: observed.responsesUrl,
 				model: observed.model,
 			}, {
-				token: "proxy-key",
+				token: "proxy-header-key",
 				accountId: "",
 				baseUrl: "https://proxy.example/v1",
 				responsesUrl: "https://proxy.example/v1/responses",
@@ -171,5 +189,7 @@ process.stdin.on("end", () => console.log(JSON.stringify({
 	} finally {
 		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];
 		else process.env["PI_CODEX_WEB_RUN_BIN"] = originalBin;
+		if (originalAgentIdentity === undefined) delete process.env["PI_CODEX_AGENT_IDENTITY_JWT"];
+		else process.env["PI_CODEX_AGENT_IDENTITY_JWT"] = originalAgentIdentity;
 	}
 });

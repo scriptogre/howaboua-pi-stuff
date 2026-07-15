@@ -102,9 +102,10 @@ export async function resolveCodexToolProvider(ctx: ExtensionContext, allowConfi
 	const model = resolveCodexToolAuthModel(ctx, allowConfiguredProvider);
 	const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
 	if (!auth.ok) throw new Error(auth.error);
-	const token = auth.apiKey ?? headerValue(auth.headers, "Authorization")?.replace(/^Bearer\s+/i, "");
-	if (!token) throw new Error(CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE);
 	const openAICodex = isOpenAICodexModel(model);
+	const authorization = headerValue(auth.headers, "Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+	const token = openAICodex ? auth.apiKey ?? authorization : authorization ?? auth.apiKey;
+	if (!token) throw new Error(CODEX_TOOL_PROVIDER_UNSUPPORTED_MESSAGE);
 	const baseUrl = openAICodex
 		? resolveCodexApiProviderBaseUrl(model.baseUrl)
 		: model.baseUrl?.trim().replace(/\/+$/, "");
@@ -139,7 +140,7 @@ export function codexWebRunUserAgent(originator: string = CODEX_ORIGINATOR): str
 }
 
 export function codexToolProviderEnv(provider: CodexToolProvider): NodeJS.ProcessEnv {
-	return {
+	const env: NodeJS.ProcessEnv = {
 		...process.env,
 		PI_CODEX_ACCESS_TOKEN: provider.token,
 		PI_CODEX_ACCOUNT_ID: provider.accountId,
@@ -147,4 +148,6 @@ export function codexToolProviderEnv(provider: CodexToolProvider): NodeJS.Proces
 		PI_CODEX_RESPONSES_URL: provider.responsesUrl,
 		...(provider.model ? { PI_CODEX_MODEL: provider.model } : {}),
 	};
+	if (provider.route === "configured-responses") delete env["PI_CODEX_AGENT_IDENTITY_JWT"];
+	return env;
 }

@@ -15,6 +15,11 @@ export interface CodexToolRegistration {
 	ensureOptionalTools(config?: CodexConversionConfig): void;
 }
 
+export function isExplicitlyConfiguredToolProvider(model: Model<Api> | undefined, config: CodexConversionConfig): boolean {
+	const provider = model?.provider?.trim().toLowerCase();
+	return Boolean(provider && config.scope.additionalProviders.some((entry) => entry.trim().toLowerCase() === provider));
+}
+
 export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRuntime): CodexToolRegistration {
 	const renderOptions = (config: CodexConversionConfig) => ({ customRendering: config.ui.toolRenaming });
 	const promptOptions = (config: CodexConversionConfig) => ({ promptSnippet: config.mode === "path" });
@@ -31,11 +36,8 @@ export function registerCodexTools(pi: ExtensionAPI, runtime: CodexExtensionRunt
 		registerViewImageTool(pi, { describeForTextModels: config.tools.viewImageFallback, ...renderOptions(config), ...promptOptions(config) });
 	};
 	const ensureOptionalTools = (config = runtime.state.config) => {
-		const allowConfiguredProvider = (model: Model<Api> | undefined): boolean => {
-			if (config.scope.allProviders !== "off") return true;
-			const provider = model?.provider?.trim().toLowerCase();
-			return Boolean(provider && config.scope.additionalProviders.includes(provider));
-		};
+		const allowConfiguredProvider = (model: Model<Api> | undefined): boolean =>
+			isExplicitlyConfiguredToolProvider(model, config);
 		if (config.tools.webRun || config.tools.webRunOnly) {
 			registerWebSearchTool(pi, WEB_SEARCH_TOOL_NAME, {
 				getRecentInput: () => runtime.latestRecentWebSearchInput,
