@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.6
+
+### Changes
+
+- [#115](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/115) [`f6bf8d9`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/f6bf8d953cbb2de661b628a311dcbbc01367b250) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Route Code Mode web search through explicitly configured Responses proxies using their active model and endpoint.
+
 ## 2.2.5
 
 ### Changes
