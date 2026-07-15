@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.5
+
+### Changes
+
+- [#111](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/111) [`5cf7d6b`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/5cf7d6b3ef6769b884d3458e80baafcd9dce5648) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Fix extension startup in Pi by using its modern root API factory instead of a runtime pi-ai subpath import.
+
 ## 2.2.4
 
 ### Changes
