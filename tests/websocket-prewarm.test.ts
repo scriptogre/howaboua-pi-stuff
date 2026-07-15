@@ -3,10 +3,13 @@ import assert from "node:assert/strict";
 import { buildCachedWebSocketRequestBody, buildRequestBody, prewarmOpenAICodexWebSocket } from "../src/providers/openai-codex-custom-provider.ts";
 import { acquireWebSocket, closeOpenAICodexWebSocketSessions } from "../src/providers/openai-codex/websocket.ts";
 import { createCodexTurnState } from "../src/providers/openai-codex/turn-state.ts";
+import { registerCodexEvents } from "../src/extension/events.ts";
+import { createCodexExtensionRuntime } from "../src/extension/runtime.ts";
 
 class FakeWebSocket {
 	static instances: FakeWebSocket[] = [];
 	readonly sent: string[] = [];
+	readonly closes: Array<{ code: number | undefined; reason: string | undefined }> = [];
 	readonly options: { headers?: Record<string, string> } | undefined;
 	readyState = 0;
 	private listeners = new Map<string, Set<(event: unknown) => void>>();
@@ -41,7 +44,8 @@ class FakeWebSocket {
 		}, 0);
 	}
 
-	close(): void {
+	close(code?: number, reason?: string): void {
+		this.closes.push({ code, reason });
 		this.readyState = 3;
 	}
 
@@ -104,6 +108,58 @@ test("WebSocket prewarm sends generate=false and seeds cached continuation", asy
 			decision: "delta",
 		});
 		acquired.release({ keep: true });
+	} finally {
+		closeOpenAICodexWebSocketSessions();
+		if (originalWebSocket) globalThis.WebSocket = originalWebSocket;
+		else delete (globalThis as { WebSocket?: unknown }).WebSocket;
+	}
+});
+
+test("session shutdown leaves sibling cached WebSockets reusable", async () => {
+	const originalWebSocket = globalThis.WebSocket;
+	FakeWebSocket.instances = [];
+	(globalThis as typeof globalThis & { WebSocket: typeof WebSocket }).WebSocket = FakeWebSocket as never;
+	try {
+		const handlers = new Map<string, (...args: never[]) => unknown>();
+		const pi = {
+			on(event: string, handler: (...args: never[]) => unknown) {
+				handlers.set(event, handler);
+			},
+		};
+		const runtime = createCodexExtensionRuntime(pi as never);
+		registerCodexEvents(
+			pi as never,
+			runtime,
+			{} as never,
+			{ clearBackgroundWidget() {} } as never,
+			{ shutdown: async () => {} } as never,
+			{ shutdown() {} } as never,
+		);
+		const shutdown = handlers.get("session_shutdown");
+		assert.ok(shutdown);
+
+		const childA = await acquireWebSocket("wss://chatgpt.example/codex/responses", new Headers(), "child-a", undefined);
+		childA.release({ keep: true });
+		const childB = await acquireWebSocket("wss://chatgpt.example/codex/responses", new Headers(), "child-b", undefined);
+		childB.release({ keep: true });
+
+		const socketA = FakeWebSocket.instances[0]!;
+		const socketB = FakeWebSocket.instances[1]!;
+		await shutdown({ type: "session_shutdown", reason: "quit" } as never, {
+			sessionManager: { getSessionId: () => "child-a" },
+		} as never);
+
+		assert.deepEqual(socketA.closes, [{ code: 1000, reason: "session_shutdown" }]);
+		assert.deepEqual(socketB.closes, []);
+
+		const reusedB = await acquireWebSocket("wss://chatgpt.example/codex/responses", new Headers(), "child-b", undefined);
+		assert.equal(reusedB.reused, true);
+		reusedB.release({ keep: true });
+
+		await shutdown({ type: "session_shutdown", reason: "quit" } as never, {
+			sessionManager: { getSessionId: () => "child-b" },
+		} as never);
+		assert.deepEqual(socketB.closes, [{ code: 1000, reason: "session_shutdown" }]);
 	} finally {
 		closeOpenAICodexWebSocketSessions();
 		if (originalWebSocket) globalThis.WebSocket = originalWebSocket;
