@@ -9,7 +9,6 @@ import {
 	type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { getApiProvider } from "@earendil-works/pi-ai/compat";
-import { streamSimple as standardResponsesStream } from "@earendil-works/pi-ai/api/openai-responses";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
@@ -158,7 +157,6 @@ export function registerCodeModeProxyProvider(
 	getConfig: () => CodexConversionConfig,
 ): CodeModeProxyProviderRegistration {
 	let registered = false;
-	let fallbackStream = standardResponsesStream;
 	const shutdown = () => {
 		if (!registered) return;
 		pi.unregisterProvider(BRIDGE_PROVIDER);
@@ -174,7 +172,8 @@ export function registerCodeModeProxyProvider(
 			shutdown();
 			return;
 		}
-		fallbackStream = getApiProvider("openai-responses")?.streamSimple ?? standardResponsesStream;
+		const fallbackStream = getApiProvider("openai-responses")?.streamSimple;
+		if (!fallbackStream) throw new Error("No built-in openai-responses provider is registered");
 		pi.registerProvider(BRIDGE_PROVIDER, {
 			api: "openai-responses",
 			streamSimple: (model, context, options) =>
