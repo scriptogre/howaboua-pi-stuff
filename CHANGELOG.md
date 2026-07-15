@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.7
+
+### Changes
+
+- [#118](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/118) [`9b00dea`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/9b00deac82223f8a26c9c918c29e003fc03f0d25) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Scope cached OpenAI Codex WebSocket shutdown to the Pi session being closed so in-process sibling sessions keep their connections.
+
 ## 2.2.6
 
 ### Changes
