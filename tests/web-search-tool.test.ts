@@ -103,23 +103,70 @@ process.stdin.on("end", () => {
 	}
 });
 
-test("web_run rejects renamed Codex providers without canonical Codex auth", async () => {
+test("web_run routes explicitly configured Responses providers through their endpoint", async () => {
 	const originalBin = process.env["PI_CODEX_WEB_RUN_BIN"];
 	try {
 		await withMockWebRun(`#!/usr/bin/env node
-process.stdin.resume();
-process.stdin.on("end", () => console.log(JSON.stringify({ encrypted_output: "ok" })));
+let input = "";
+process.stdin.on("data", (chunk) => input += chunk);
+process.stdin.on("end", () => console.log(JSON.stringify({
+  output_text: "ok",
+  observed: {
+	input: JSON.parse(input),
+    token: process.env.PI_CODEX_ACCESS_TOKEN,
+    accountId: process.env.PI_CODEX_ACCOUNT_ID,
+    baseUrl: process.env.PI_CODEX_BASE_URL,
+    responsesUrl: process.env.PI_CODEX_RESPONSES_URL,
+    model: process.env.PI_CODEX_MODEL,
+  },
+})));
 `, async (webRunPath) => {
 			process.env["PI_CODEX_WEB_RUN_BIN"] = webRunPath;
 			await assert.rejects(
-				() => createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ provider: "custom-codex", api: "openai-codex-responses" })),
+				() => createWebSearchTool().execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ provider: "responses-proxy", api: "openai-responses" })),
 				/requires an OpenAI Codex-compatible Responses provider/,
 			);
-			const tool = createWebSearchTool("web_run", { allowConfiguredProvider: (model) => model?.provider === "custom-codex" });
-			await assert.rejects(
-				() => tool.execute("call", { search_query: [{ q: "OpenAI" }] }, undefined, undefined as never, createContext({ provider: "custom-codex", api: "openai-codex-responses" })),
-				/requires an OpenAI Codex-compatible Responses provider/,
+			const tool = createWebSearchTool("web_run", {
+				allowConfiguredProvider: (model) => model?.provider === "responses-proxy",
+				model: "gpt-5.6-luna",
+			});
+			const result = await tool.execute(
+				"call",
+				{ search_query: [{ q: "OpenAI" }] },
+				undefined,
+				undefined as never,
+				createContext({
+					provider: "responses-proxy",
+					api: "openai-responses",
+					baseUrl: "https://proxy.example/v1/",
+					model: "gpt-5.6",
+					token: "proxy-key",
+				}),
 			);
+			assert.equal(result.content[0]?.type === "text" ? result.content[0].text : undefined, "ok");
+			const observed = ((result.details as { webRun: { observed: {
+				input: Record<string, unknown>;
+				token: string;
+				accountId: string;
+				baseUrl: string;
+				responsesUrl: string;
+				model: string;
+			} } }).webRun).observed;
+			assert.equal(observed.input["model"], "gpt-5.6");
+			assert.deepEqual(observed.input["search_query"], [{ q: "OpenAI" }]);
+			assert.deepEqual({
+				token: observed.token,
+				accountId: observed.accountId,
+				baseUrl: observed.baseUrl,
+				responsesUrl: observed.responsesUrl,
+				model: observed.model,
+			}, {
+				token: "proxy-key",
+				accountId: "",
+				baseUrl: "https://proxy.example/v1",
+				responsesUrl: "https://proxy.example/v1/responses",
+				model: "gpt-5.6",
+			});
 		});
 	} finally {
 		if (originalBin === undefined) delete process.env["PI_CODEX_WEB_RUN_BIN"];

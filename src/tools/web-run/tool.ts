@@ -176,10 +176,11 @@ export function supportsMultimodalNativeWebSearch(model: ExtensionContext["model
 }
 
 export async function executeCodexWebSearch(params: Record<string, unknown>, ctx: ExtensionContext, signal: AbortSignal | undefined | null, options: WebSearchToolOptions = {}): Promise<WebRunExecutionResult> {
-	const provider = await resolveCodexToolProvider(ctx);
+	const provider = await resolveCodexToolProvider(ctx, options.allowConfiguredProvider);
 	const webRunPath = process.env["PI_CODEX_WEB_RUN_BIN"]?.trim() || join(getBundledPathToolsBinDir(), process.platform === "win32" ? "web_run.cmd" : "web_run");
 	const sessionId = ctx.sessionManager?.getSessionId?.() || options.sessionId;
-	const model = typeof options.model === "function" ? options.model() : options.model;
+	const configuredModel = typeof options.model === "function" ? options.model() : options.model;
+	const model = provider.route === "configured-responses" ? provider.model : configuredModel;
 	const statePath = webRunSessionStatePath(ctx);
 	const env = { ...codexToolProviderEnv(provider), ...(statePath ? { PI_WEB_RUN_STATE_PATH: statePath } : {}) };
 	try {
