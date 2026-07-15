@@ -20,10 +20,17 @@ export interface ResponsesLiteCompatibleBody {
 	[key: string]: unknown;
 }
 
-export function supportsResponsesLiteModel(modelId: string | undefined): boolean {
-	if (!modelId) return false;
+type ResponsesLiteModel = string | { id: string } | undefined;
+
+export function supportsResponsesLiteModel(model: ResponsesLiteModel): boolean {
+	return /^gpt-5\.6-(?:luna|terra|sol)$/.test(normalizeModelId(model));
+}
+
+function normalizeModelId(model: ResponsesLiteModel): string {
+	const modelId = typeof model === "string" ? model : model?.id;
+	if (!modelId) return "";
 	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
-	return /^gpt-5\.6-(?:luna|terra|sol)$/.test(id.toLowerCase());
+	return id.toLowerCase();
 }
 
 export function isResponsesLiteRequest(body: ResponsesLiteCompatibleBody): boolean {
@@ -104,7 +111,7 @@ async function prepareLiteImageContent(content: unknown): Promise<unknown> {
 export async function prepareResponsesLiteRequestImages<TBody extends ResponsesLiteCompatibleBody>(body: TBody): Promise<TBody> {
 	const input = await Promise.all(body.input.map(async (item) => {
 		if (!isRecord(item)) return item;
-		if (item["type"] === "message" || item["role"] === "user" || item["role"] === "developer" || item["role"] === "system") {
+		if ((item["type"] === "message" || item["role"] === "user" || item["role"] === "developer" || item["role"] === "system") && "content" in item) {
 			return { ...item, content: await prepareLiteImageContent(item["content"]) };
 		}
 		if ((item["type"] === "function_call_output" || item["type"] === "custom_tool_call_output") && isRecord(item["output"])) {

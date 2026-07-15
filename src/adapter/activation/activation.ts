@@ -1,5 +1,5 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isCodexLikeContext, isOpenAICodexContext, isResponsesContext } from "../prompt/codex-model.ts";
+import { isCodexLikeContext, isOpenAICodexContext, isOpenAIResponsesContext, isResponsesContext } from "../prompt/codex-model.ts";
 import { supportsResponsesLiteModel } from "../../providers/openai-codex/responses-lite.ts";
 import type { CodexConversionConfig } from "./config.ts";
 import type { AdapterState } from "./state.ts";
@@ -45,11 +45,27 @@ export function shouldUseNativeResponsesCompaction(ctx: ExtensionContext, config
 	return isOpenAICodexContext(ctx) || isConfiguredAdapterProvider(ctx, config);
 }
 
-export function shouldUseGpt56CodeMode(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
-	return config.beta.codeMode && isOpenAICodexContext(ctx) && supportsResponsesLiteModel(ctx.model?.id ?? "");
+export function shouldUseGpt56CodeMode(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
+	if (!config.beta.codeMode) return false;
+	if (isOpenAICodexContext(ctx)) return supportsResponsesLiteModel(ctx.model?.id);
+	return isConfiguredAdapterProvider(ctx, config)
+		&& isOpenAIResponsesContext(ctx)
+		&& supportsProxiedGpt56CodeModeModel(ctx.model);
 }
 
-export function isConfiguredAdapterProvider(ctx: ExtensionContext, config: CodexConversionConfig): boolean {
+export function supportsProxiedGpt56CodeModeModel(model: string | { id: string } | undefined): boolean {
+	const modelId = typeof model === "string" ? model : model?.id;
+	if (!modelId) return false;
+	const id = modelId.includes("/") ? (modelId.split("/").pop() ?? modelId) : modelId;
+	return /^gpt-5\.6(?:-(?:luna|terra|sol))?$/.test(id.toLowerCase());
+}
+
+export function shouldUseResponsesLiteForCodeMode(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
+	if (!shouldUseGpt56CodeMode(ctx, config)) return false;
+	return isOpenAICodexContext(ctx) || config.beta.responsesLite;
+}
+
+export function isConfiguredAdapterProvider(ctx: Pick<ExtensionContext, "model">, config: CodexConversionConfig): boolean {
 	const provider = ctx.model?.provider?.trim().toLowerCase();
 	return Boolean(provider && config.scope.additionalProviders.includes(provider));
 }

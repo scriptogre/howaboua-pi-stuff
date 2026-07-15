@@ -14,7 +14,7 @@ export function migrateCodexConversionConfigIfNeeded(value: unknown): { migrated
 		const beta = isObject(value["beta"]) ? value["beta"] : undefined;
 		if (beta && typeof beta["responsesLite"] === "boolean" && typeof beta["codeMode"] !== "boolean") {
 			const { responsesLite, ...rest } = beta;
-			return { migrated: true, config: { ...value, beta: { ...rest, codeMode: responsesLite } } };
+			return { migrated: true, config: { ...value, beta: { ...rest, codeMode: responsesLite, responsesLite: false } } };
 		}
 		return { migrated: false, config: value };
 	}

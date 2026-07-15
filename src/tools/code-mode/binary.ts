@@ -7,6 +7,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 const execFileAsync = promisify(execFile);
 const HOST_RELEASE = "rust-v0.144.1";
+const HOST_INSTALL_TIMEOUT_MS = 270_000;
 
 function packageRoot(): string {
 	return dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
@@ -42,7 +43,7 @@ export function codeModeHostBinaryPath(): string {
 	);
 }
 
-export async function ensureCodeModeHostBinary(): Promise<string> {
+export async function ensureCodeModeHostBinary(signal?: AbortSignal): Promise<string> {
 	try {
 		return codeModeHostBinaryPath();
 	} catch {
@@ -56,10 +57,11 @@ export async function ensureCodeModeHostBinary(): Promise<string> {
 			process.platform === "win32"
 				? "codex-code-mode-host.exe"
 				: "codex-code-mode-host";
-		await execFileAsync(process.execPath, [
-			script,
-			codeModeHostCachePath(name),
-		]);
+		await execFileAsync(
+			process.execPath,
+			[script, codeModeHostCachePath(name)],
+			{ timeout: HOST_INSTALL_TIMEOUT_MS, signal },
+		);
 		return codeModeHostBinaryPath();
 	}
 }

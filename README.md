@@ -42,14 +42,14 @@ Generated images are saved under `.pi/openai-codex-images/` at the workspace roo
 
 ### GPT-5.6 Code Mode
 
-Code Mode is an opt-in beta for OpenAI Codex Luna, Terra, and Sol. Only `exec` and `wait` reach the provider. `exec` composes nested tools locally:
+Code Mode is an opt-in beta for OpenAI Codex Luna, Terra, and Sol. Explicitly configured Responses providers may also use those model IDs or the gpt-5.6 alias. Proxy providers retain raw JavaScript exec calls through a custom Responses stream. Responses Lite is optional for proxies and has a separate Beta setting; built-in Codex models use it automatically. Only `exec` and `wait` reach the provider. `exec` composes nested tools locally:
 
 ```js
 const status = await tools.exec_command({ cmd: "git status --short" });
 text(status);
 ```
 
-Nested `apply_patch`, `view_image`, `web__run`, `image_gen__imagegen`, `exec_command`, and `write_stdin` calls keep normal Pi rendering without exposing their schemas to the provider. The first `exec` downloads and verifies the pinned V8 host.
+Nested `apply_patch`, `view_image`, `web__run`, `image_gen__imagegen`, `exec_command`, and `write_stdin` calls keep normal Pi rendering without exposing their schemas to the provider. When Code Mode becomes active, Pi starts downloading and verifying the pinned V8 host instead of waiting for the first `exec`. Downloads respect standard proxy environment variables and fail instead of hanging indefinitely.
 
 ## Code Mode custom tools
 
