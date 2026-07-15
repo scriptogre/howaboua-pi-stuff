@@ -1,14 +1,15 @@
 import OpenAI, { APIError } from "openai";
 import {
 	createAssistantMessageEventStream,
+	lazyApi,
 	type Api,
 	type AssistantMessage,
 	type Context,
 	type Model,
 	type ProviderHeaders,
+	type ProviderStreams,
 	type SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import { getApiProvider } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { ResponseCreateParamsStreaming } from "openai/resources/responses/responses.js";
 import type { CodexConversionConfig } from "../adapter/activation/config.ts";
@@ -19,6 +20,10 @@ import { processCodexResponsesStream } from "./openai-codex/stream-events.ts";
 import type { OpenAICodexStreamOptions, ResponsesBody, StreamEventShape } from "./openai-codex/types.ts";
 
 const BRIDGE_PROVIDER = "@howaboua/pi-codex-conversion:responses-proxy";
+const OPENAI_RESPONSES_API_MODULE = "@earendil-works/pi-ai/api/openai-responses";
+const standardResponsesStream = lazyApi(async () =>
+	await import(OPENAI_RESPONSES_API_MODULE) as ProviderStreams
+).streamSimple;
 
 function initialAssistantMessage<TApi extends Api>(model: Model<TApi>): AssistantMessage {
 	return {
@@ -172,14 +177,12 @@ export function registerCodeModeProxyProvider(
 			shutdown();
 			return;
 		}
-		const fallbackStream = getApiProvider("openai-responses")?.streamSimple;
-		if (!fallbackStream) throw new Error("No built-in openai-responses provider is registered");
 		pi.registerProvider(BRIDGE_PROVIDER, {
 			api: "openai-responses",
 			streamSimple: (model, context, options) =>
 				shouldUseGpt56CodeMode({ model }, getConfig())
 					? streamCodeModeResponsesProxy(model, context, options)
-					: fallbackStream(model as never, context, options),
+					: standardResponsesStream(model as never, context, options),
 		});
 		registered = true;
 	};
