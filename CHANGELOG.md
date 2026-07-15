@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.4
+
+### Changes
+
+- [#109](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/109) [`cbe2950`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/cbe295098ea5668102963ca9e27982864635eea7) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Respect Pi skill exclusions by leaving native `.agents` skill discovery to Pi. Code Mode now prepares its V8 host early with proxy-aware, cancellable downloads, preserves raw exec calls and response diagnostics through explicitly configured Responses providers, supports header-only proxy authentication, separates optional proxy Responses Lite transport from Code Mode, and keeps its model-facing tool contract compact.
+
 ## 2.2.3
 
 ### Changes
