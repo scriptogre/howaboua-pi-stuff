@@ -2,10 +2,11 @@ import type { CodeModeToolMetadata } from "./types.js";
 
 export const EXEC_DESCRIPTION = `Run raw JavaScript to compose tool calls.
 Optional first line: // @exec: {"yield_time_ms": 10000, "max_output_tokens": 1000}
+Emit output with text(value); console is unavailable.
 Globals: tools, text, image, generatedImage, store, load, notify, yield_control, exit, setTimeout, clearTimeout, ALL_TOOLS.`;
 
 export const WAIT_DESCRIPTION =
-	"Resume a yielded exec cell.";
+	"Resume or terminate an exec cell; use tools.write_stdin for session_id.";
 
 const PROMOTED_TOOLS_HEADING = "Custom tools available in exec:";
 const DOCUMENTATION_PREFIX = "Custom tools documentation: read ";
