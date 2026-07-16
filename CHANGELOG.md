@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.9
+
+### Changes
+
+- [#128](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/128) [`7bcf709`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/7bcf709f700056cbc921bf597fd5ff0267f2706a) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Remove redundant tool-name labels from promoted Code Mode usage contracts.
+
 ## 2.2.8
 
 ### Changes
