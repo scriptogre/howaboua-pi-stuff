@@ -25,7 +25,7 @@ test("Code Mode keeps TOML tools deferred unless promoted", () => {
 	assert.equal(promoted.deferLoading, false);
 	assert.equal(
 		buildPromotedToolsPrompt([deferred, promoted]),
-		"Custom tools available in exec:\n- common_tool: await tools.common_tool(input)",
+		"Custom tools available in exec:\n- await tools.common_tool(input)",
 	);
 });
 

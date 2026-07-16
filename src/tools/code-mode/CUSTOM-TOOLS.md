@@ -39,7 +39,7 @@ text(ALL_TOOLS.map(({ name }) => name));
 text(ALL_TOOLS.find(({ name }) => name === "port_info"));
 ```
 
-Set `defer_loading = false` only for stable, frequently used tools. Promotion adds only the name and `usage` to the system prompt; full help remains local.
+Set `defer_loading = false` only for stable, frequently used tools. Promotion adds only `usage` to the system prompt; full help remains local.
 
 ## Bundled examples
 

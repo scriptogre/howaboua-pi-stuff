@@ -24,11 +24,11 @@ test("Code Mode advertises only model-compatible nested tools", async () => {
 		);
 		assert.match(
 			promptResult?.systemPrompt ?? "",
-			/apply_patch: await tools\.apply_patch\(patch\)/,
+			/await tools\.apply_patch\(patch\)/,
 		);
-		assert.match(promptResult?.systemPrompt ?? "", /view_image: const result = await tools\.view_image/);
-		assert.match(promptResult?.systemPrompt ?? "", /web__run: await tools\.web__run/);
-		assert.match(promptResult?.systemPrompt ?? "", /image_gen__imagegen: await tools\.image_gen__imagegen/);
+		assert.match(promptResult?.systemPrompt ?? "", /const result = await tools\.view_image/);
+		assert.match(promptResult?.systemPrompt ?? "", /await tools\.web__run/);
+		assert.match(promptResult?.systemPrompt ?? "", /await tools\.image_gen__imagegen/);
 		const textOnlyPrompt = promptHandler?.(
 			{ systemPrompt: "Base" },
 			{
@@ -40,8 +40,8 @@ test("Code Mode advertises only model-compatible nested tools", async () => {
 				},
 			},
 		) as { systemPrompt?: string } | undefined;
-		assert.doesNotMatch(textOnlyPrompt?.systemPrompt ?? "", /view_image:/);
-		assert.doesNotMatch(textOnlyPrompt?.systemPrompt ?? "", /image_gen__imagegen:/);
+		assert.doesNotMatch(textOnlyPrompt?.systemPrompt ?? "", /tools\.view_image/);
+		assert.doesNotMatch(textOnlyPrompt?.systemPrompt ?? "", /tools\.image_gen__imagegen/);
 		(runtime as any).state.config.tools.viewImageFallback = true;
 		const fallbackPrompt = promptHandler?.(
 			{ systemPrompt: "Base" },
@@ -54,7 +54,7 @@ test("Code Mode advertises only model-compatible nested tools", async () => {
 				},
 			},
 		) as { systemPrompt?: string } | undefined;
-		assert.match(fallbackPrompt?.systemPrompt ?? "", /view_image: const description = await tools\.view_image/);
+		assert.match(fallbackPrompt?.systemPrompt ?? "", /const description = await tools\.view_image/);
 		(runtime as any).state.config.tools.viewImageFallback = false;
 	} finally {
 		await fixture.close();

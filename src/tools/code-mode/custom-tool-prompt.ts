@@ -31,7 +31,7 @@ export function buildPromotedToolsPrompt(
 		.sort((left, right) => left.name.localeCompare(right.name));
 	if (promoted.length === 0) return "";
 	return `${PROMOTED_TOOLS_HEADING}\n${promoted
-		.map((tool) => `- ${tool.name}: ${tool.usage}`)
+		.map((tool) => `- ${tool.usage}`)
 		.join("\n")}`;
 }
 
