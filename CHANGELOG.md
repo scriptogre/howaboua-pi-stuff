@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.8
+
+### Changes
+
+- [#124](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/124) [`556ac48`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/556ac482bad77fb8e76d9e218687ab10ad0d2f70) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Clarify Code Mode output and continuation tool guidance.
+
 ## 2.2.7
 
 ### Changes
