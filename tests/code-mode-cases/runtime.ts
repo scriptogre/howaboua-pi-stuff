@@ -60,9 +60,9 @@ throw new Error("expected-wait-boom");`,
 					input: ["text"],
 				},
 			} as never,
-		);
-		assert.equal(yielded.details.status, "yielded");
-		const wait = tools.get("wait");
+			);
+			assert.equal(yielded.details.status, "yielded");
+			const wait = tools.get("wait");
 		const waited = await wait.execute(
 			"wait-error",
 			{ cell_id: yielded.details.cellId, yield_time_ms: 1_000 },

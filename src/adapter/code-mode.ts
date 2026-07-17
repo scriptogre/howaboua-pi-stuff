@@ -1,4 +1,4 @@
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { CodexExtensionRuntime } from "../extension/runtime.ts";
 import {
 	type CodeModeRegistration,
@@ -52,6 +52,7 @@ function createNestedTools(
 		customRendering: runtime.state.config.ui.toolRenaming,
 		showOutputWhenCollapsed: true,
 		compactTools: runtime.state.config.ui.compactTools,
+		interceptApplyPatch: true,
 	};
 	const tools: ProgrammaticCodeModeToolDefinition[] = [
 		toNestedTool(
@@ -98,6 +99,27 @@ function createNestedTools(
 					if (cmd) runtime.tracker.recordStart(id, cmd);
 				},
 				end: (id) => runtime.tracker.recordEnd(id),
+			},
+			{
+				resultValue(result) {
+					const details = result.details;
+					if (result.content.some((item) => item.type === "image")) {
+						const outputHint = isExecResult(details)
+							? details.output
+							: result.content.filter((item) => item.type === "text").map((item) => item.text).join("\n") || undefined;
+						return codeModeImageResult(result, outputHint);
+					}
+					if (isRunningExecResult(details))
+						return {
+							...details,
+							continuation: `Still running. Call exec with tools.write_stdin({ session_id: ${details.session_id} })`,
+						};
+					if (isExecResult(details)) return details;
+					return result.content
+						.filter((item): item is { type: "text"; text: string } => item.type === "text")
+						.map((item) => item.text)
+						.join("\n") || "(no output)";
+				},
 			},
 		),
 		toNestedTool(
@@ -153,4 +175,12 @@ function createNestedTools(
 		));
 	}
 	return tools;
+}
+
+function isRunningExecResult(details: AgentToolResult<unknown>["details"]): details is Record<string, unknown> & { session_id: number } {
+	return Boolean(details && typeof details === "object" && "session_id" in details && typeof details.session_id === "number");
+}
+
+function isExecResult(details: AgentToolResult<unknown>["details"]): details is Record<string, unknown> & { output: string } {
+	return Boolean(details && typeof details === "object" && "output" in details && typeof details.output === "string");
 }
