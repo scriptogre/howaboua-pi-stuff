@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.11
+
+### Changes
+
+- [#134](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/134) [`a938fbd`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/a938fbdfb722d3e3105fb778538f4e3d9be954d3) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Restore Code Mode tool execution for configured OpenAI Responses providers on Pi 0.80.8 and newer by routing their streams through the custom-tool parser. Persist settings atomically and make existing Code Mode history safe to resume after the mode is disabled.
+
 ## 2.2.10
 
 ### Changes
