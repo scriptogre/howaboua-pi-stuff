@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.13
+
+### Changes
+
+- [#138](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/138) [`088be70`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/088be704fec1ad0d67461fab88f43822f6776bdb) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Allows Responses compaction v1 and v2 to reuse the same encrypted checkpoint across protocol and model changes when the provider, API, and endpoint match. Native compaction now inherits the active model and reasoning level, while normal model switches preserve backend-verified WebSocket continuation.
+
 ## 2.2.12
 
 ### Changes
