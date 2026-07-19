@@ -1,7 +1,15 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { discoverCustomTools, getCustomToolsDir } from "./custom-tools.js";
+import type {
+	ExtensionAPI,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
+import {
+	type CustomToolDiscoveryError,
+	discoverCustomToolsFromDirectories,
+	getCustomToolsDir,
+	getProjectCustomToolsDir,
+} from "./custom-tools.js";
 import { registerPublicCodeModeTools } from "./public-tools.js";
 import {
 	SharedCodeModeRuntime,
@@ -28,14 +36,70 @@ export interface CodeModeRegistration {
 
 export async function registerCustomTools(
 	pi: ExtensionAPI,
-	toolsDir: string = getCustomToolsDir(),
+	toolsDir?: string | readonly string[],
 	options: { isActive?(ctx: unknown): boolean } = {},
 ): Promise<CodeModeRegistration> {
+	const usesDefaultDirs = toolsDir === undefined;
+	const toolsDirs =
+		toolsDir === undefined
+			? [getCustomToolsDir(), getProjectCustomToolsDir()]
+			: typeof toolsDir === "string"
+				? [toolsDir]
+				: [...toolsDir];
+	let previousErrors = new Map<string, string>();
 	return registerCodeModeTools(pi, {
-		getTools: () => discoverCustomTools(toolsDir),
+		getTools: (ctx) => {
+			const activeDirs =
+				usesDefaultDirs && !isTrustedProjectContext(ctx)
+					? toolsDirs.slice(0, 1)
+					: toolsDirs;
+			const discovery = discoverCustomToolsFromDirectories(activeDirs);
+			previousErrors = reportCustomToolErrors(
+				ctx,
+				discovery.errors,
+				previousErrors,
+			);
+			return discovery.tools;
+		},
 		documentationPath: customToolsDocumentationPath(),
 		...options,
 	});
+}
+
+function reportCustomToolErrors(
+	ctx: unknown,
+	errors: CustomToolDiscoveryError[],
+	previous: Map<string, string>,
+): Map<string, string> {
+	if (!isExtensionContext(ctx)) return previous;
+	const current = new Map(errors.map((error) => [error.path, error.message]));
+	for (const error of errors) {
+		if (previous.get(error.path) === error.message) continue;
+		ctx.ui.notify(`Code Mode custom tool disabled: ${error.message}`, "error");
+	}
+	return current;
+}
+
+function isExtensionContext(value: unknown): value is ExtensionContext {
+	return Boolean(
+		value &&
+			typeof value === "object" &&
+			"ui" in value &&
+			value.ui &&
+			typeof value.ui === "object" &&
+			"notify" in value.ui &&
+			typeof value.ui.notify === "function",
+	);
+}
+
+function isTrustedProjectContext(value: unknown): value is ExtensionContext {
+	return Boolean(
+		value &&
+			typeof value === "object" &&
+			"isProjectTrusted" in value &&
+			typeof value.isProjectTrusted === "function" &&
+			value.isProjectTrusted(),
+	);
 }
 
 export async function registerCodeModeTools(

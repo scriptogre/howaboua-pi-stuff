@@ -18,7 +18,9 @@ export interface CustomToolDefinition extends CodeModeToolMetadata {
 	command: string;
 	args: string[];
 	input: CustomToolInputMode;
+	yieldTimeMs?: number | undefined;
 	sourcePath: string;
+	disabledReason?: string | undefined;
 }
 
 export interface ProgrammaticCodeModeToolDefinition
@@ -105,6 +107,7 @@ export type RuntimeResponse = (
 	  }
 ) & {
 	maxOutputTokens?: number | undefined;
+	missingCell?: true | undefined;
 	traces?: RuntimeToolTrace[] | undefined;
 	droppedTraceCount?: number | undefined;
 };

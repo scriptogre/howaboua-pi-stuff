@@ -18,6 +18,7 @@ import {
 } from "./rendering.js";
 import type { SharedCodeModeRuntime } from "./shared-runtime.js";
 import { toCodeModeToolResult } from "./tool-result.js";
+import type { ToolExecutionContext } from "./types.js";
 
 const DEFAULT_WAIT_MS = 10_000;
 const MIN_ADAPTIVE_WAIT_MS = 5_000;
@@ -127,6 +128,23 @@ function createWaitTool(
 							context,
 							signal,
 						);
+				const recovered =
+					!params.terminate &&
+					response.missingCell === true
+						? await continueExecSessionFromMistakenWait(
+								params.cell_id,
+								params.yield_time_ms ?? DEFAULT_WAIT_MS,
+								params.max_tokens,
+								runtime,
+								context,
+								signal,
+							)
+						: undefined;
+				if (recovered) {
+					waitAttempts.delete(params.cell_id);
+					tracker.finish(id, recovered.running ? "yielded" : "done");
+					return recovered.result;
+				}
 				if (response.kind === "yielded")
 					waitAttempts.set(params.cell_id, attempt + 1);
 				else waitAttempts.delete(params.cell_id);
@@ -154,6 +172,92 @@ function createWaitTool(
 				runtime.useRichRendering(),
 			)) as any,
 		renderResult: renderResult as any,
+	};
+}
+
+async function continueExecSessionFromMistakenWait(
+	cellId: string,
+	yieldTimeMs: number,
+	maxOutputTokens: number | undefined,
+	runtime: SharedCodeModeRuntime,
+	context: ToolExecutionContext,
+	signal?: AbortSignal,
+): Promise<
+	| {
+			running: boolean;
+			result: {
+				content: Array<{ type: "text"; text: string }>;
+				details: unknown;
+			};
+	  }
+	| undefined
+> {
+	if (!/^\d+$/.test(cellId)) return undefined;
+	const sessionId = Number(cellId);
+	if (!Number.isSafeInteger(sessionId) || String(sessionId) !== cellId)
+		return undefined;
+	const writeStdin = runtime
+		.collectTools(context.extensionContext)
+		.find((tool) => tool.name === "write_stdin" && "invoke" in tool);
+	if (!writeStdin || !("invoke" in writeStdin)) return undefined;
+	let value: unknown;
+	try {
+		value = await writeStdin.invoke(
+			{
+				session_id: sessionId,
+				yield_time_ms: yieldTimeMs,
+				...(maxOutputTokens === undefined
+					? {}
+					: { max_output_tokens: maxOutputTokens }),
+			},
+			context,
+			signal ?? new AbortController().signal,
+		);
+	} catch (fallbackError) {
+		const fallbackMessage =
+			fallbackError instanceof Error
+				? fallbackError.message
+				: String(fallbackError);
+		if (/unknown process id/i.test(fallbackMessage)) return undefined;
+		throw fallbackError;
+	}
+	if (!value || typeof value !== "object" || !("output" in value))
+		return undefined;
+	const output = typeof value.output === "string" ? value.output : "";
+	const exitCode =
+		"exit_code" in value && typeof value.exit_code === "number"
+			? value.exit_code
+			: undefined;
+	const running =
+		"session_id" in value && typeof value.session_id === "number";
+	return {
+		running,
+		result: {
+			content: [
+				{
+					type: "text",
+					text: `Recovered wait cell_id ${cellId} as exec_command session_id ${sessionId} and continued it with write_stdin.`,
+				},
+				...(output ? [{ type: "text" as const, text: output }] : []),
+				...(exitCode === undefined
+					? []
+					: [
+							{
+								type: "text" as const,
+								text: `Process exited with code ${exitCode}.`,
+							},
+						]),
+				...(running
+					? [
+							{
+								type: "text" as const,
+								text: `exec_command session ${sessionId} is still running. Continue with exec and tools.write_stdin({ session_id: ${sessionId} }).`,
+							},
+						]
+					: []),
+			],
+			details: value,
+		},
 	};
 }
 
