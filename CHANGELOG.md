@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.16
+
+### Changes
+
+- [#151](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/151) [`e1f44a2`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/e1f44a25bbc850db6df285e9944c183ce0fbc7e5) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Use UUIDv7 request IDs for sessionless OpenAI Codex WebSocket requests.
+
 ## 2.2.15
 
 ### Changes
