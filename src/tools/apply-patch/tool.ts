@@ -17,7 +17,7 @@ import {
 
 const APPLY_PATCH_PARAMETERS = Type.Object({
 	input: Type.String({
-		description: "Full patch text. Use *** Begin Patch / *** End Patch with Add/Update/Delete File sections.",
+		description: "Full patch text. Use *** Begin Patch / *** End Patch with Add/Update/Delete File sections. Order each file's hunks top-to-bottom; indentation is literal",
 	}),
 });
 
@@ -74,13 +74,18 @@ function buildPartialFailureMessage(message: string, failedFiles: string[], appl
 	const lines = [message];
 	if (failedFiles.length > 0) {
 		lines.push(`Failed file${failedFiles.length === 1 ? "" : "s"}: ${failedFiles.join(", ")}`);
-		lines.push(`Recovery: MUST read ${failedFiles.join(", ")} before retrying.`);
+		lines.push(`Recovery: MUST read ${failedFiles.join(", ")} before retrying`);
 	}
 	if (appliedFiles.length > 0) {
-		lines.push("Earlier file actions in this patch were already applied.");
-		lines.push("Recovery: MUST NOT reread other files from this patch unless a specific dependency requires it.");
+		lines.push("Earlier file actions in this patch were already applied");
+		lines.push("Recovery: MUST NOT reread other files from this patch unless a specific dependency requires it");
 	}
 	return lines.join("\n");
+}
+
+function addPatchRetryHint(message: string, cause: string): string {
+	if (!cause.startsWith("Failed to find expected lines")) return message;
+	return `${message}\nRecovery: order each Update File's hunks top-to-bottom and copy exact indentation before retrying`;
 }
 
 function describeFailedActions(error: ExecutePatchError, cwd: string): string[] {
@@ -101,8 +106,8 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 	return {
 		name: "apply_patch",
 		label: "apply_patch",
-		description: "Patch files.",
-		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with patch." }),
+		description: "Patch files",
+		...(options.promptSnippet === false ? {} : { promptSnippet: "Edit files with patch" }),
 		parameters: APPLY_PATCH_PARAMETERS,
 		prepareArguments: prepareApplyPatchArguments,
 		async execute(toolCallId, params, signal, _onUpdate, ctx) {
@@ -119,7 +124,8 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 					const failedTargets = describeFailedActions(error, ctx.cwd);
 					const failedTargetSummary = failedTargets.join(", ");
 					const prefix = partial ? `apply_patch partially failed after ${summarizePatchCounts(error.result)}` : "apply_patch failed";
-					const message = failedTargetSummary ? `${prefix} while patching ${failedTargetSummary}: ${error.message}` : `${prefix}: ${error.message}`;
+					const rawMessage = failedTargetSummary ? `${prefix} while patching ${failedTargetSummary}: ${error.message}` : `${prefix}: ${error.message}`;
+					const message = addPatchRetryHint(rawMessage, error.message);
 					if (partial) {
 						const failedFiles = getFailedPaths(error);
 						const appliedFiles = getAppliedPaths(error.result, failedFiles);
@@ -134,7 +140,7 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 								failedTargets,
 								appliedFiles,
 								failedFiles,
-								recoveryInstructions: { mustReadFiles: failedFiles, mustNotReadFiles: appliedFiles },
+								recoveryInstructions: { mustReadFiles: [...failedFiles], mustNotReadFiles: [...appliedFiles] },
 							} satisfies ApplyPatchPartialFailureDetails,
 						};
 					}
@@ -145,7 +151,7 @@ export function createApplyPatchTool(options: ApplyPatchToolOptions = {}) {
 				throw error;
 			}
 			const summary = [
-				"Applied patch successfully.",
+				"Applied patch successfully",
 				`Changed files: ${result.changedFiles.length}`,
 				`Created files: ${result.createdFiles.length}`,
 				`Deleted files: ${result.deletedFiles.length}`,
