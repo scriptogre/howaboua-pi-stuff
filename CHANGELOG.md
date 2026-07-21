@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.15
+
+### Changes
+
+- [#149](https://github.com/IgorWarzocha/howaboua-pi-stuff/pull/149) [`94b2252`](https://github.com/IgorWarzocha/howaboua-pi-stuff/commit/94b225295be07e04206460963fd3da754a74565e) Thanks [@IgorWarzocha](https://github.com/IgorWarzocha)! - Trim cosmetic terminal punctuation from model-facing Codex prompts and tool metadata; document raw `cmd` strings and JavaScript template-literal considerations; guide apply-patch hunk ordering and return clearer, trace-safe recovery errors
+
 ## 2.2.14
 
 ### Changes
