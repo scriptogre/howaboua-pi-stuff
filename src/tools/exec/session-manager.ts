@@ -1,6 +1,7 @@
+import { StringDecoder } from "node:string_decoder";
 import { getCodexShellArgs } from "../../adapter/prompt/runtime-shell.ts";
-import { applyTerminalOutput, normalizePipeOutput } from "./output.ts";
-import { chunkToText, createExecBridgeClient, type BridgeReadResponse } from "./bridge-client.ts";
+import { applyTerminalOutput, boundTerminalOutput, normalizePipeOutput } from "./output.ts";
+import { chunkToBytes, createExecBridgeClient, type BridgeReadResponse } from "./bridge-client.ts";
 import { DEFAULT_EXEC_YIELD_TIME_MS, DEFAULT_MAX_EMPTY_WRITE_YIELD_TIME_MS, DEFAULT_WRITE_YIELD_TIME_MS, clampExecYieldTime, clampWriteYieldTime, normalizeMinEmptyWriteYieldTime, normalizeMinNonInteractiveExecYieldTime, resolveExecution, resolveShell, resolveWorkdir } from "./shell.ts";
 import { registerAbortHandler, waitForExitOrTimeout } from "./wait.ts";
 import { makeExecResult, makeSnapshotResult, makeSnapshotSince, snapshotSession } from "./results.ts";
@@ -59,6 +60,7 @@ interface BaseExecSession {
 	terminating: boolean;
 	listeners: Set<() => void>;
 	interactive: boolean;
+	nextEmptyPollYieldMs?: number | undefined;
 }
 
 interface RustExecSession extends BaseExecSession {
@@ -71,6 +73,9 @@ interface RustExecSession extends BaseExecSession {
 	terminalCommitted: string;
 	terminalLine: string[];
 	terminalCursor: number;
+	terminalPendingControl: string;
+	outputDecoders: Record<"stdout" | "stderr" | "pty", StringDecoder>;
+	outputDecodersFlushed: boolean;
 }
 
 type ExecSession = RustExecSession;
@@ -182,9 +187,15 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 
 	function appendOutput(session: ExecSession, text: string): void {
 		if (text.length === 0) return;
-		session.buffer =
-			session.tty ? applyTerminalOutput(session, text) : `${session.buffer}${normalizePipeOutput(text)}`;
-		if (session.buffer.length > maxSessionBufferChars) {
+		if (session.tty) {
+			applyTerminalOutput(session, text);
+			const bounded = boundTerminalOutput(session, maxSessionBufferChars);
+			session.buffer = bounded.output;
+			if (bounded.rebased) session.emittedBuffer = "";
+		} else {
+			session.buffer += normalizePipeOutput(text);
+		}
+		if (!session.tty && session.buffer.length > maxSessionBufferChars) {
 			session.buffer = session.buffer.slice(-maxSessionBufferChars);
 			session.emittedBuffer = "";
 		}
@@ -204,13 +215,17 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			wait_ms: waitMs,
 		});
 		for (const chunk of response.chunks ?? []) {
-			appendOutput(session, chunkToText(chunk.chunk));
+			appendOutput(session, session.outputDecoders[chunk.stream].write(chunkToBytes(chunk.chunk)));
 			session.lastSeq = Math.max(session.lastSeq, chunk.seq);
 		}
 		session.lastSeq = Math.max(session.lastSeq, response.nextSeq - 1);
 		// Process exit can race ahead of the stdout/stderr readers. Only publish
 		// the terminal state once the bridge confirms every output stream closed.
 		if (response.closed) {
+			if (!session.outputDecodersFlushed) {
+				session.outputDecodersFlushed = true;
+				for (const decoder of Object.values(session.outputDecoders)) appendOutput(session, decoder.end());
+			}
 			setClosedExitCode(session, response.exitCode);
 			finalizeSession(session);
 		}
@@ -239,6 +254,13 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			terminalCommitted: "",
 			terminalLine: [],
 			terminalCursor: 0,
+			terminalPendingControl: "",
+			outputDecoders: {
+				stdout: new StringDecoder("utf8"),
+				stderr: new StringDecoder("utf8"),
+				pty: new StringDecoder("utf8"),
+			},
+			outputDecodersFlushed: false,
 		};
 		session.processId = `pi-${session.id}`;
 		session.startup = (async () => {
@@ -316,14 +338,17 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 
 			try {
 				onUpdate?.(makeSnapshotResult(session, 0, input.max_output_tokens, true));
+				const execYieldMs = clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs, input.max_yield_time_ms);
 				const waitedMs = await waitForExitOrTimeout(
 					session,
-					clampExecYieldTime(input.yield_time_ms, defaultExecYieldTimeMs, session.interactive, minNonInteractiveExecYieldTimeMs, input.max_yield_time_ms),
+					execYieldMs,
 					signal,
 					onUpdate ? (elapsedMs) => onUpdate(makeSnapshotResult(session, elapsedMs, input.max_output_tokens)) : undefined,
 				);
 				await waitForStartup(session, signal);
 				if (session.started) await pollSession(session, 0);
+				if (session.exitCode === undefined || session.exitCode === null)
+					session.nextEmptyPollYieldMs = growEmptyPollYield(execYieldMs, maxEmptyWriteYieldTimeMs);
 				return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 			} catch (error) {
 				if (signal?.aborted) sessions.delete(session.id);
@@ -341,30 +366,39 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 				throw new Error(`Unknown process id ${input.session_id}`);
 			}
 			const updateBaseline = session.buffer;
-			if (input.chars && input.chars.length > 0) {
+			const chars = input.chars ?? "";
+			const isEmptyPoll = chars.length === 0;
+			if (!isEmptyPoll) {
 				if (!session.interactive) {
 					throw new Error("stdin is closed for this session; rerun exec_command with tty=true to keep stdin open");
 				}
-				await bridge.request({ op: "write", process_id: session.processId, chunk: Array.from(Buffer.from(input.chars, "utf8")) });
+				await bridge.request({ op: "write", process_id: session.processId, chunk: Array.from(Buffer.from(chars, "utf8")) });
+				session.nextEmptyPollYieldMs = undefined;
 			}
 			onUpdate?.(makeSnapshotSince(session, 0, updateBaseline, input.max_output_tokens));
+			const requestedYieldMs = clampWriteYieldTime(
+				input.yield_time_ms,
+				defaultWriteYieldTimeMs,
+				isEmptyPoll,
+				minEmptyWriteYieldTimeMs,
+				maxEmptyWriteYieldTimeMs,
+			);
+			const effectiveYieldMs = isEmptyPoll
+				? Math.max(requestedYieldMs, session.nextEmptyPollYieldMs ?? 0)
+				: requestedYieldMs;
 			const waitedMs =
 				session.exitCode === undefined
 					? await waitForExitOrTimeout(
 							session,
-							clampWriteYieldTime(
-								input.yield_time_ms,
-								defaultWriteYieldTimeMs,
-								!input.chars || input.chars.length === 0,
-								minEmptyWriteYieldTimeMs,
-								maxEmptyWriteYieldTimeMs,
-							),
+							effectiveYieldMs,
 							signal,
 							onUpdate ? (elapsedMs) => onUpdate(makeSnapshotSince(session, elapsedMs, updateBaseline, input.max_output_tokens)) : undefined,
 					)
 					: 0;
 			await waitForStartup(session, signal);
 			if (session.started) await pollSession(session, 0);
+			if (isEmptyPoll && (session.exitCode === undefined || session.exitCode === null))
+				session.nextEmptyPollYieldMs = growEmptyPollYield(effectiveYieldMs, maxEmptyWriteYieldTimeMs);
 			return makeExecResult(session, waitedMs, input.max_output_tokens, exposeSession, (sessionId) => sessions.delete(sessionId));
 		},
 		hasSession: (sessionId) => sessions.has(sessionId),
@@ -406,4 +440,8 @@ export function createExecSessionManager(options: ExecSessionManagerOptions = {}
 			commandHistory.clear();
 		},
 	};
+}
+
+function growEmptyPollYield(currentMs: number, maximumMs: number): number {
+	return Math.min(maximumMs, currentMs * 2);
 }
