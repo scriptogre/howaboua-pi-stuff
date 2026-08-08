@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DEFAULT_CODEX_CONVERSION_CONFIG } from "../src/adapter/activation/config.ts";
+import { registerCodexCodeMode } from "../src/adapter/code-mode.ts";
+import { createExecCommandTracker } from "../src/tools/exec/command-state.ts";
+import { createExecSessionManager } from "../src/tools/exec/session-manager.ts";
 import {
 	buildCodeModeToolsPrompt,
 	injectCodeModeToolsPrompt,
@@ -73,6 +77,36 @@ test("Code Mode separates bundled, promoted custom, and deferred custom expositi
 	assert.match(withCustom, /Deferred custom tools: find by name in ALL_TOOLS/);
 	assert.match(withCustom, /To create or edit a custom tool, read/);
 	assert.equal(injectCodeModeToolsPrompt(withCustom, tools, "/custom-tools.md"), withCustom);
+});
+
+test("exec_command prompt documents its output field", async () => {
+	const pi = {
+		events: {},
+		on() {},
+		registerTool() {},
+	};
+	const registration = await registerCodexCodeMode(pi as never, {
+		state: {
+			config: {
+				...DEFAULT_CODEX_CONVERSION_CONFIG,
+				beta: { ...DEFAULT_CODEX_CONVERSION_CONFIG.beta, codeMode: true },
+			},
+		},
+		tracker: createExecCommandTracker(),
+		sessions: createExecSessionManager(),
+	} as never);
+	try {
+		const prompt = registration.refreshPromptTools("Base", {
+			cwd: process.cwd(),
+			model: { provider: "openai-codex", api: "openai-codex-responses", id: "gpt-5.6-luna" },
+			isProjectTrusted: () => false,
+			ui: { notify() {} },
+		});
+
+		assert.match(prompt, /exec_command.*returns \{ output: string/);
+	} finally {
+		await registration.shutdown();
+	}
 });
 
 test("ALL_TOOLS exposes only deferred configured custom tools", () => {
