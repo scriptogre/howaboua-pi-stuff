@@ -12,10 +12,13 @@ import {
 
 test("fatal Codex API errors do not arm SSE fallback", async () => {
 	const restoreWebSocket = installScriptedWebSocket([
-		(socket) => socket.emitJson({
-			type: "response.failed",
-			response: { status: "failed", error: { type: "invalid_request_error", status_code: 422, message: "bad request" } },
-		}),
+		(socket) => {
+			socket.emitJson({ type: "response.created", response: { id: "resp_failed" } });
+			socket.emitJson({
+				type: "response.failed",
+				response: { status: "failed", error: { type: "invalid_request_error", status_code: 422, message: "bad request" } },
+			});
+		},
 		websocketSuccess,
 	]);
 	const originalFetch = globalThis.fetch;
@@ -29,6 +32,7 @@ test("fatal Codex API errors do not arm SSE fallback", async () => {
 		const request = codexStreamRequest("api-error-session");
 		const failed = await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
 		assert.equal((failed.at(-1) as { type?: string }).type, "error");
+		assert.match((failed.at(-1) as { error?: { errorMessage?: string } }).error?.errorMessage ?? "", /bad request/);
 		await collectStream(registered.provider.streamSimple(request.model, request.context, request.options));
 
 		assert.equal(ScriptedWebSocket.opened, 2);
