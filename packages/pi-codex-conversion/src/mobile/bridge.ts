@@ -43,13 +43,21 @@ async function runRequest(request: BridgeRequest, registry: BridgeRegistry, resp
 	let settled = false;
 	const activity = new ActivityPresenter();
 	stream.start();
+	const slashCommand = request.prompt.trimStart().startsWith("/");
+	if (slashCommand) {
+		stream.startMessage();
+		stream.delta(`Running Pi command ${inline(request.prompt)}.`);
+	}
 	const unsubscribe = session.subscribe((event) => {
 		if (isAssistantMessageStart(event)) stream.startMessage();
 		else if (isAssistantMessageEnd(event)) stream.finishMessage();
 		else if (isTextDelta(event)) stream.delta(event.assistantMessageEvent.delta);
-		else {
-			for (const text of activity.present(event)) stream.activity(text.endsWith("\n") ? text : `${text}\n`);
+		else if (slashCommand && isUserMessageStart(event)) {
+			const expanded = agentMessageText(event.message);
+			stream.delta(expanded && expanded !== request.prompt ? `\n\nExpanded and sent ${expanded.length.toLocaleString("en-US")} characters to Pi.` : "\n\nSent to Pi.");
+			stream.finishMessage();
 		}
+		else stream.present(activity.present(event));
 	});
 	response.on("close", () => { if (!settled) session.abort(); });
 	try {
@@ -106,26 +114,28 @@ function environmentCwd(value: string): string | undefined {
 
 class ResponsesStream {
 	private readonly responseId = `resp_${randomUUID()}`;
-	private readonly reasoningId = `rs_${randomUUID()}`;
 	private readonly response: ServerResponse;
-	private activityOutput = "";
+	private readonly activities = new Map<string, { id: string; outputIndex: number; text: string }>();
 	private currentMessage: { id: string; outputIndex: number; text: string } | undefined;
-	private readonly messages: unknown[] = [];
-	private nextOutputIndex = 1;
+	private readonly outputs: unknown[] = [];
+	private nextOutputIndex = 0;
 
 	constructor(response: ServerResponse) { this.response = response; }
 
 	start(): void {
 		this.response.writeHead(200, { "cache-control": "no-cache", "content-type": "text/event-stream", "x-content-type-options": "nosniff" });
 		this.send({ type: "response.created", response: { id: this.responseId, status: "in_progress", output: [] } });
-		this.send({ type: "response.output_item.added", output_index: 0, item: this.reasoning("in_progress", "") });
-		this.send({ type: "response.reasoning_summary_part.added", output_index: 0, summary_index: 0, item_id: this.reasoningId, part: this.summary("") });
 	}
 
-	activity(value: string): void {
-		if (!value) return;
-		this.activityOutput += value;
-		this.send({ type: "response.reasoning_summary_text.delta", output_index: 0, summary_index: 0, item_id: this.reasoningId, delta: value });
+	present(actions: Presentation[]): void {
+		for (const action of actions) {
+			if (action.phase === "start") this.startActivity(action.key, action.text);
+			else if (action.phase === "finish") this.finishActivity(action.key, action.text);
+			else {
+				this.startActivity(action.key, action.text);
+				this.finishActivity(action.key);
+			}
+		}
 	}
 
 	startMessage(): void {
@@ -152,17 +162,14 @@ class ResponsesStream {
 		this.send({ type: "response.output_text.done", output_index: message.outputIndex, content_index: 0, item_id: message.id, text: message.text, logprobs: [] });
 		this.send({ type: "response.content_part.done", output_index: message.outputIndex, content_index: 0, item_id: message.id, part });
 		this.send({ type: "response.output_item.done", output_index: message.outputIndex, item });
-		this.messages.push(item);
+		this.outputs[message.outputIndex] = item;
 		this.currentMessage = undefined;
 	}
 
 	complete(): void {
 		this.finishMessage();
-		const reasoning = this.reasoning("completed", this.activityOutput);
-		this.send({ type: "response.reasoning_summary_text.done", output_index: 0, summary_index: 0, item_id: this.reasoningId, text: this.activityOutput });
-		this.send({ type: "response.reasoning_summary_part.done", output_index: 0, summary_index: 0, item_id: this.reasoningId, part: this.summary(this.activityOutput) });
-		this.send({ type: "response.output_item.done", output_index: 0, item: reasoning });
-		this.send({ type: "response.completed", response: { id: this.responseId, status: "completed", output: [reasoning, ...this.messages], usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, input_tokens_details: { cached_tokens: 0 } } } });
+		for (const key of [...this.activities.keys()]) this.finishActivity(key);
+		this.send({ type: "response.completed", response: { id: this.responseId, status: "completed", output: this.outputs.filter(Boolean), usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, input_tokens_details: { cached_tokens: 0 } } } });
 		this.response.end();
 	}
 
@@ -173,9 +180,37 @@ class ResponsesStream {
 
 	private part(value: string) { return { type: "output_text", text: value, annotations: [] }; }
 	private summary(value: string) { return { type: "summary_text", text: value }; }
-	private reasoning(status: string, value: string) { return { type: "reasoning", id: this.reasoningId, status, summary: value ? [this.summary(value)] : [] }; }
+	private reasoning(id: string, status: string, value: string) { return { type: "reasoning", id, status, summary: value ? [this.summary(value)] : [] }; }
 	private item(id: string, status: string, content: unknown[]) { return { type: "message", id, role: "assistant", status, content }; }
 	private send(value: unknown): void { this.response.write(`data: ${JSON.stringify(value)}\n\n`); }
+
+	private startActivity(key: string, value: string): void {
+		if (this.activities.has(key)) return;
+		const activity = { id: `rs_${randomUUID()}`, outputIndex: this.nextOutputIndex++, text: "" };
+		this.activities.set(key, activity);
+		this.send({ type: "response.output_item.added", output_index: activity.outputIndex, item: this.reasoning(activity.id, "in_progress", "") });
+		this.send({ type: "response.reasoning_summary_part.added", output_index: activity.outputIndex, summary_index: 0, item_id: activity.id, part: this.summary("") });
+		this.appendActivity(key, value);
+	}
+
+	private appendActivity(key: string, value: string): void {
+		const activity = this.activities.get(key);
+		if (!activity || !value) return;
+		activity.text += value;
+		this.send({ type: "response.reasoning_summary_text.delta", output_index: activity.outputIndex, summary_index: 0, item_id: activity.id, delta: value });
+	}
+
+	private finishActivity(key: string, value = ""): void {
+		const activity = this.activities.get(key);
+		if (!activity) return;
+		this.appendActivity(key, value);
+		const item = this.reasoning(activity.id, "completed", activity.text);
+		this.send({ type: "response.reasoning_summary_text.done", output_index: activity.outputIndex, summary_index: 0, item_id: activity.id, text: activity.text });
+		this.send({ type: "response.reasoning_summary_part.done", output_index: activity.outputIndex, summary_index: 0, item_id: activity.id, part: this.summary(activity.text) });
+		this.send({ type: "response.output_item.done", output_index: activity.outputIndex, item });
+		this.outputs[activity.outputIndex] = item;
+		this.activities.delete(key);
+	}
 }
 
 async function readJson(request: IncomingMessage): Promise<unknown> {
@@ -203,29 +238,50 @@ function isAssistantMessageEnd(value: unknown): boolean {
 	return record(value) && value["type"] === "message_end" && record(value["message"]) && value["message"]["role"] === "assistant";
 }
 
+function isUserMessageStart(value: unknown): value is { message: Record<string, unknown> } {
+	return record(value) && value["type"] === "message_start" && record(value["message"]) && value["message"]["role"] === "user";
+}
+
+function agentMessageText(message: Record<string, unknown>): string | undefined {
+	if (typeof message["content"] === "string") return text(message["content"]);
+	if (!Array.isArray(message["content"])) return undefined;
+	const value = message["content"].filter(record).filter((part) => part["type"] === "text").map((part) => text(part["text"]) ?? "").join("\n");
+	return text(value);
+}
+
+interface Presentation {
+	key: string;
+	phase: "start" | "finish" | "complete";
+	text: string;
+}
+
 class ActivityPresenter {
 	private readonly traceStates = new Map<string, string>();
 	private readonly tracedCalls = new Set<string>();
+	private noticeId = 0;
 
-	present(value: unknown): string[] {
+	present(value: unknown): Presentation[] {
 		if (!record(value)) return [];
-		if (value["type"] === "mobile_presentation") return text(value["text"]) ? [text(value["text"])!] : [];
+		if (value["type"] === "mobile_presentation") {
+			const message = text(value["text"]);
+			return message ? [{ key: `notice:${this.noticeId++}`, phase: "complete", text: message }] : [];
+		}
 		if (value["type"] === "tool_execution_update") return this.traceUpdates(value);
 		const name = text(value["toolName"]);
 		if (!name) return [];
-		const callId = text(value["toolCallId"]);
-		if (value["type"] === "tool_execution_start") return name === "exec" ? [] : [toolStart(name, value["args"])];
+		const callId = text(value["toolCallId"]) ?? `tool:${name}`;
+		if (value["type"] === "tool_execution_start") return name === "exec" ? [] : [{ key: callId, phase: "start", text: toolStart(name, value["args"]) }];
 		if (value["type"] !== "tool_execution_end") return [];
 		if (name === "exec" && callId && this.tracedCalls.has(callId)) return [];
-		return [toolEnd(name, value["result"], Boolean(value["isError"]))];
+		return [{ key: callId, phase: name === "exec" ? "complete" : "finish", text: toolEnd(name, value["result"], Boolean(value["isError"])) }];
 	}
 
-	private traceUpdates(event: Record<string, unknown>): string[] {
+	private traceUpdates(event: Record<string, unknown>): Presentation[] {
 		const callId = text(event["toolCallId"]);
 		const partial = record(event["partialResult"]) ? event["partialResult"] : {};
 		const details = record(partial["details"]) ? partial["details"] : {};
 		if (!callId || !Array.isArray(details["traces"])) return [];
-		const output: string[] = [];
+		const output: Presentation[] = [];
 		for (const trace of details["traces"].filter(record)) {
 			const id = text(trace["id"]);
 			const name = text(trace["name"]);
@@ -234,8 +290,8 @@ class ActivityPresenter {
 			this.tracedCalls.add(callId);
 			const key = `${callId}:${id}`;
 			const previous = this.traceStates.get(key);
-			if (!previous) output.push(traceStart(name, trace["input"]));
-			if (status !== previous && status !== "running") output.push(traceEnd(name, trace));
+			if (!previous) output.push({ key, phase: "start", text: traceStart(name, trace["input"]) });
+			if (status !== previous && status !== "running") output.push({ key, phase: "finish", text: traceEnd(name, trace) });
 			this.traceStates.set(key, status);
 		}
 		return output;

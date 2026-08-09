@@ -11,6 +11,7 @@ test("mobile bridge streams Pi text as an OpenAI Responses result", async () => 
 	const session: BridgeSession = {
 		prompt: async (message) => {
 			prompts.push(message);
+			for (const listener of listeners) listener({ type: "message_start", message: { role: "user", content: [{ type: "text", text: "Expanded simplify prompt" }] } });
 			for (const listener of listeners) listener({ type: "message_start", message: { role: "assistant" } });
 			for (const listener of listeners) listener({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "I’ll check." } });
 			for (const listener of listeners) listener({ type: "message_end", message: { role: "assistant" } });
@@ -42,15 +43,18 @@ test("mobile bridge streams Pi text as an OpenAI Responses result", async () => 
 			body: JSON.stringify({
 				client_metadata: { thread_id: "thread-1" },
 				reasoning: { effort: "high" },
-				input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "Do work" }] }],
+				input: [{ type: "message", role: "user", content: [{ type: "input_text", text: "/simplify mobile bridge" }] }],
 			}),
 		});
 		const body = await response.text();
 		assert.equal(response.status, 200);
-		assert.deepEqual(prompts, ["Do work"]);
+		assert.deepEqual(prompts, ["/simplify mobile bridge"]);
 		assert.deepEqual(thinkingLevels, ["high"]);
+		assert.match(body, /Running Pi command.*simplify mobile bridge/);
+		assert.match(body, /Expanded and sent 24 characters to Pi/);
 		assert.match(body, /response\.output_text\.delta/);
 		assert.match(body, /response\.reasoning_summary_text\.delta/);
+		assert.equal((body.match(/response\.reasoning_summary_part\.added/g) ?? []).length, 2);
 		assert.match(body, /\*\*Command\*\*/);
 		assert.match(body, /git status --short/);
 		assert.match(body, /Command completed/);
@@ -62,7 +66,7 @@ test("mobile bridge streams Pi text as an OpenAI Responses result", async () => 
 		assert.match(body, /Hello from Pi/);
 		assert.match(body, /I’ll check\./);
 		assert.match(body, /Hello from Pi/);
-		assert.equal((body.match(/response\.output_item\.done/g) ?? []).length, 3);
+		assert.equal((body.match(/response\.output_item\.done/g) ?? []).length, 5);
 		assert.match(body, /response\.completed/);
 	} finally {
 		await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
