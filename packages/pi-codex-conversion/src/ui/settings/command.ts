@@ -6,18 +6,21 @@ import type { AdapterState } from "../../adapter/activation/state.ts";
 import type { CodexVoiceController } from "../../voice/controller.ts";
 import { createCodexVoiceControls } from "../../voice/controls.ts";
 import type { CodexLanVoiceServerController } from "../../voice/lan/controller.ts";
+import type { CodexMobileController } from "../../mobile/controller.ts";
+import { createCodexMobileControls, MOBILE_ACTIONS } from "../../mobile/controls.ts";
 import { ROUTABLE_SETTINGS_TABS, parseSettingsTab, type SettingsTab } from "./tabs.ts";
 import { openCodexSettingsScreen } from "./screen.ts";
 
 const VOICE_ACTIONS = ["voice realtime", "voice mute", "voice dictation", "voice stop", "voice server"] as const;
-const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS];
-const CODEX_USAGE = "Usage: /codex [tools|openai|display|voice [realtime|mute|dictation|stop|server]|usage|about]";
+const CODEX_COMMAND_COMPLETIONS = [...ROUTABLE_SETTINGS_TABS.map(({ id }) => id), ...VOICE_ACTIONS, ...MOBILE_ACTIONS];
+const CODEX_USAGE = "Usage: /codex [tools|openai|display|voice [realtime|mute|dictation|stop|server]|mobile [start|stop|pair|status]|usage|about]";
 
 export function registerCodexCommand(
 	pi: ExtensionAPI,
 	state: AdapterState,
 	voice: CodexVoiceController,
 	lanVoice: CodexLanVoiceServerController,
+	mobile: CodexMobileController,
 	onConfigApplied?: (config: CodexConversionConfig, ctx: ExtensionContext, previousConfig: CodexConversionConfig) => void,
 ): void {
 	function saveAndApply(ctx: ExtensionContext, nextConfig: CodexConversionConfig): boolean {
@@ -34,6 +37,7 @@ export function registerCodexCommand(
 	}
 
 	const voiceControls = createCodexVoiceControls({ pi, state, voice, lanVoice });
+	const mobileControls = createCodexMobileControls(mobile);
 
 	async function openSettings(ctx: ExtensionContext, tab: SettingsTab): Promise<void> {
 		if (!ctx.hasUI) {
@@ -95,6 +99,7 @@ export function registerCodexCommand(
 				}
 				return;
 			}
+			if (await mobileControls.handle(arg, ctx)) return;
 
 			const tab = arg ? parseSettingsTab(arg) : "adapter";
 			if (tab) {

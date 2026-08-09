@@ -22,6 +22,9 @@
     "apply-patch"
   ],
   "license": "MIT",
+  "bin": {
+    "pi-codex-mobile-bridge": "./dist/mobile/cli.js"
+  },
   "main": "./dist/index.js",
   "types": "./types/index.d.ts",
   "exports": {

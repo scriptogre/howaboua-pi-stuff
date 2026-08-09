@@ -22,6 +22,7 @@ import { CodexLanVoiceServerController } from "../voice/lan/controller.ts";
 import { getActiveToolsInActiveOrder } from "../adapter/active-tools.ts";
 import { createLazyCodexDiagnostics } from "../diagnostics/lazy.ts";
 import type { CodexDiagnosticsSink } from "../providers/openai-codex/types.ts";
+import { CodexMobileController } from "../mobile/controller.ts";
 
 export type CodexContext = ExtensionContext;
 
@@ -37,6 +38,7 @@ export interface CodexExtensionRuntime {
 	backgroundWidget: BackgroundBashWidgetState;
 	voice: CodexVoiceController;
 	lanVoice: CodexLanVoiceServerController;
+	mobile: CodexMobileController;
 	execEnv(config?: CodexConversionConfig): NodeJS.ProcessEnv;
 	codexSystemPrompt(basePrompt: string, ctx: CodexContext, skills?: AdapterState["promptSkills"], systemPromptOptions?: PiSystemPromptOptions): string;
 	startPrewarm(ctx: CodexContext, systemPrompt?: string, prepared?: boolean): Promise<CodexPrewarmResult> | undefined;
@@ -211,6 +213,7 @@ export function createCodexExtensionRuntime(pi: ExtensionAPI): CodexExtensionRun
 			},
 			dirname(getCodexConversionConfigPath()),
 		),
+		mobile: new CodexMobileController(dirname(getCodexConversionConfigPath())),
 		execEnv(config = state.config) {
 			return { ...process.env, PI_CODEX_MODEL: config.openai.webSearchModel };
 		},

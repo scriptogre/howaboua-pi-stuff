@@ -32,7 +32,7 @@ export async function registerCodexConversion(pi: ExtensionAPI): Promise<void> {
 		cleanupProxyProvider = proxyProvider;
 		const tools = registerCodexTools(pi, runtime);
 		const ui = registerCodexUi(pi, runtime);
-		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, (config, ctx, previousConfig) => {
+		registerCodexCommand(pi, runtime.state, runtime.voice, runtime.lanVoice, runtime.mobile, (config, ctx, previousConfig) => {
 			proxyProvider.applyConfig(config, ctx.modelRegistry);
 			tools.applyConfig(config);
 			ui.applyConfig(config);

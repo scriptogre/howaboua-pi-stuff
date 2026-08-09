@@ -24,6 +24,7 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 - [Cache diagnostics](#cache-diagnostics)
 - [Code Mode and custom tools](#code-mode-and-custom-tools)
 - [Voice, dictation and GipPity](#voice-dictation-and-gippity)
+- [Codex Mobile](#codex-mobile)
 - [Models and providers](#models-and-providers)
 - [Migrating from Lite](#migrating-from-lite)
 - [Troubleshooting](#troubleshooting)
@@ -35,6 +36,7 @@ Open `/codex` after installation. The defaults give Codex-like GPT models the st
 - foreground, background and interactive shell sessions with resumable output
 - web search, page navigation, image generation/editing and image descriptions for blind models
 - realtime voice, push-to-dictate and the GipPity LAN remote mini WebUI
+- Codex Mobile access to persistent Pi sessions
 - OpenAI verbosity, fast mode, cached transport, usage, reset credits and Responses compaction
 - compact Pi-native rendering, status and background-shell controls
 
@@ -168,6 +170,48 @@ GipPity provides realtime voice with a microphone mute button, editable dictatio
 
 The server belongs only to the Pi session that started it and stops when that session changes. There is intentionally no authentication in v1; it is for a trusted LAN.
 
+## Codex Mobile
+
+Use Codex Mobile as the UI while Pi owns the agent sessions and runs the work:
+
+```text
+/codex mobile pair
+```
+
+`pair` starts the loopback Responses bridge and Codex's remote-control daemon
+when needed, then prints the short-lived code used by Codex Mobile.
+This requires the standalone install managed by the official Codex installer;
+`codex remote-control start` must work on the host.
+
+Mobile uses an isolated Codex home under Pi's agent directory. It shares the
+existing Codex login and install, while keeping the Pi bridge provider out of
+normal Codex sessions.
+
+New mobile threads start with the Pi model active when the bridge starts.
+Existing threads restore the model saved in their Pi session.
+
+Each Codex thread maps to one persistent Pi session. The bridge restores that
+session after a restart and forwards cancellation when the mobile request ends.
+It listens only on `127.0.0.1`.
+
+The response stream shows Pi tool calls, commands or targets, concise output,
+file patches, extension notifications, and failures alongside Pi's reply.
+
+Commands:
+
+```text
+/codex mobile start
+/codex mobile stop
+/codex mobile pair
+/codex mobile status
+```
+
+To attach a thread to an existing Pi session, send `/resume <Pi session ID>` as
+the thread's only message. Send the next message to continue that session.
+
+The mobile bridge stops when its owning Pi session shuts down. The package also
+installs `pi-codex-mobile-bridge` for running only the bridge without `/codex`.
+
 ## Models and providers
 
 The default scope activates conservatively for Codex-like GPT routes and Responses providers listed under **Additional providers**. Switching to an unrelated model restores Pi's ordinary tools.
@@ -198,6 +242,7 @@ This is also a major change for users of the old canonical package. Legacy PATH 
 - **Code Mode cannot start:** its pinned host is prepared lazily and honours normal proxy environment variables. Pi reports setup failures instead of hanging the first execution.
 - **A helper cannot run on this system:** build it from a checkout on the target machine, put it in `tools.customRustBinariesDir`, then run `/reload`. Do not replace system glibc for this.
 - **A configured provider fails:** it must implement the OpenAI Responses contracts required by the enabled feature. Code Mode additionally needs Responses Lite compatibility; native compaction needs the Codex compaction contract.
+- **Codex Mobile cannot start:** confirm `codex remote-control start` works. Codex remote control requires the standalone install managed by the official Codex installer.
 
 For anything stranger, clone the repository and ask your Clanka:
 
