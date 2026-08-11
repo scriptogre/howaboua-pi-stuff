@@ -27,7 +27,7 @@ export function createCodexVoiceControls(options: {
 		if (voice.activeMode === mode) return;
 		const currentConfig = readCodexConversionConfig();
 		state.config = currentConfig;
-		const missingAudioSettings = missingVoiceAudioSettings(currentConfig, mode);
+		const missingAudioSettings = missingVoiceAudioSettings(currentConfig);
 		if (missingAudioSettings.length > 0) {
 			if (mode === "realtime" && voice.prepareRealtimePrompt(ctx) === undefined) return;
 			if (!ctx.isIdle()) {

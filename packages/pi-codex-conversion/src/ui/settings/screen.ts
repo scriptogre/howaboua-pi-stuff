@@ -230,6 +230,10 @@ function formatVoiceDetails(
 	return [
 		theme.fg(
 			"dim",
+			`  Audio output: ${config.voice.outputDevice ?? "system default (restart voice after switching)"}`,
+		),
+		theme.fg(
+			"dim",
 			`  Realtime voice: ${formatVoiceShortcut(config.voice.realtimeShortcut)}`,
 		),
 		theme.fg(

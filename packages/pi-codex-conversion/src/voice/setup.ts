@@ -4,10 +4,9 @@ import type { CodexVoiceMode } from "./ui.ts";
 
 export type VoiceAudioSetting = "voice.inputDevice" | "voice.outputDevice";
 
-export function missingVoiceAudioSettings(config: CodexConversionConfig, mode: "realtime" | "dictation"): VoiceAudioSetting[] {
+export function missingVoiceAudioSettings(config: CodexConversionConfig): VoiceAudioSetting[] {
 	return [
 		...(!config.voice.inputDevice ? ["voice.inputDevice" as const] : []),
-		...(mode === "realtime" && !config.voice.outputDevice ? ["voice.outputDevice" as const] : []),
 	];
 }
 
